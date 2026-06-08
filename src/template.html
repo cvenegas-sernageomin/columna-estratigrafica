@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Columna Estratigráfica · Editor de Campo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%233A2818'/><rect x='4' y='2' width='8' height='3' fill='%23A87C2A'/><rect x='4' y='6' width='8' height='3' fill='%232D5F4E'/><rect x='4' y='10' width='8' height='4' fill='%23A8553C'/></svg>" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    #root { min-height: 100vh; }
+    /* Pantalla de carga mientras Babel transpila */
+    #boot {
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; flex-direction: column; gap: 14px;
+      background: #E5D8BD; color: #5C4A33;
+      font-family: Georgia, "Palatino Linotype", serif; z-index: 9999;
+    }
+    #boot .t { font-size: 20px; font-style: italic; color: #3A2818; }
+    #boot .s { font-size: 12px; font-family: monospace; letter-spacing: .08em; }
+    @media print {
+      #boot { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="boot">
+    <div class="t">Columna Estratigráfica</div>
+    <div class="s">cargando editor…</div>
+  </div>
+  <div id="root"></div>
+
+  <!-- ░░ Librerías embebidas (funciona sin internet) ░░ -->
+  <script>/*__REACT__*/</script>
+  <script>/*__REACTDOM__*/</script>
+  <script>/*__BABEL__*/</script>
+
+  <!-- ░░ Aplicación ░░ -->
+  <script type="text/babel" data-presets="react">
+/*__APP__*/
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    // Oculta la pantalla de carga una vez montada la app
+    requestAnimationFrame(() => {
+      const b = document.getElementById("boot");
+      if (b) b.remove();
+    });
+  </script>
+</body>
+</html>
