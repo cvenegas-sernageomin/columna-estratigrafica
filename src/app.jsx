@@ -616,11 +616,13 @@ ${hasImg ? `<p style="margin:8px 0"><img src="files/column.png" width="300"/></p
       + `</coordinates></LineString></Placemark>`;
   }
   return `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
 <Document>
 <name>${name}</name>
-<Placemark>
+${lookAt}
+<Placemark id="basePM">
 <name>${name} (base)</name>
+<gx:balloonVisibility>1</gx:balloonVisibility>
 ${lookAt}
 <description>${desc}</description>
 <Point><coordinates>${start.lon.toFixed(8)},${start.lat.toFixed(8)},${ele}</coordinates></Point>
