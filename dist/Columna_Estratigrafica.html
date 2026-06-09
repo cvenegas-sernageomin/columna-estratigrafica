@@ -449,6 +449,8 @@ const LITH = [
   ["schist",       "Esquisto",                "p-schist",  "coherent", "Metamórficas (por textura)"],
   ["gneiss",       "Gneis",                   "p-gneiss",  "coherent", "Metamórficas (por textura)"],
   ["amphibolite",  "Anfibolita",              "p-amphib",  "coherent", "Metamórficas (por textura)"],
+  // ── Cubierto / sin afloramiento ──
+  ["covered",      "Tapado / cubierto (sin afloramiento)", "p-covered", "coherent", "Cubierto / sin afloramiento"],
 ];
 
 const LITH_GROUPS = [...new Set(LITH.map(l => l[4]))];
@@ -623,6 +625,22 @@ const SAMPLE_TYPES = [
   ["otra",           "Otra",                  "#5C4A33"],
 ];
 const findST = id => SAMPLE_TYPES.find(t => t[0] === id) ?? SAMPLE_TYPES[7];
+
+// Borde derecho "a mano alzada" (baja sinuosidad): camino cerrado de la unidad
+// con la arista derecha ondulada suavemente alrededor de xr. Determinista por seed.
+function freehandUnitPath(x0, xr, topY, hpx, seed) {
+  const step = 11;
+  const n = Math.max(2, Math.round(hpx / step));
+  const A1 = 1.9, A2 = 0.9, f1 = 0.13, f2 = 0.31, ph = seed * 1.7;
+  const ox = y => A1 * Math.sin(y * f1 + ph) + A2 * Math.sin(y * f2 + ph * 1.3);
+  let d = `M${x0},${topY.toFixed(1)}`;
+  for (let i = 0; i <= n; i++) {
+    const y = topY + hpx * i / n;
+    d += ` L${(xr + ox(y)).toFixed(1)},${y.toFixed(1)}`;
+  }
+  d += ` L${x0},${(topY + hpx).toFixed(1)} Z`;
+  return d;
+}
 
 // Fusiona unidades consecutivas con el mismo valor de `field` en bandas {val,bot,top}
 function bandsOf(units, cumH, field) {
@@ -1298,6 +1316,14 @@ function SvgDefs({ totalH, spx }) {
         <rect x="6" y="7" width="2.4" height="1" fill="#A8B0A0" transform="rotate(30 7.2 7.5)"/>
         <rect x="12" y="5" width="2" height=".9" fill="#A8B0A0" transform="rotate(-20 13 5.4)"/>
       </pattern>
+
+      {/* ── Cubierto / sin afloramiento ── */}
+      <pattern id="p-covered" width="10" height="10" patternUnits="userSpaceOnUse">
+        <rect width="10" height="10" fill="#E6E1D6"/>
+        <line x1="-5" y1="5" x2="5" y2="-5" stroke="#9C9080" strokeWidth="1.1"/>
+        <line x1="0" y1="10" x2="10" y2="0" stroke="#9C9080" strokeWidth="1.1"/>
+        <line x1="5" y1="15" x2="15" y2="5" stroke="#9C9080" strokeWidth="1.1"/>
+      </pattern>
     </defs>
   );
 }
@@ -1336,6 +1362,7 @@ function ColumnaEstratigrafica() {
   const [meta,       setMeta]       = useState(DEFAULT_META);
   const [samples,    setSamples]    = useState([]);
   const [scaleMode,  setScaleMode]  = useState("auto");
+  const [edgeStyle,  setEdgeStyle]  = useState("freehand");
 
   const csvInputRef   = useRef(null);
   const photoInputRef = useRef(null);
@@ -1625,7 +1652,7 @@ function ColumnaEstratigrafica() {
         <div style={{ fontSize: 11, fontFamily: MONO, color: T.gold,
                       letterSpacing: ".15em", borderLeft: `1px solid ${T.gold}`,
                       paddingLeft: 16, marginLeft: 6 }}>
-          EDITOR DE CAMPO · v3.6
+          EDITOR DE CAMPO · v3.9
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -2040,6 +2067,15 @@ function ColumnaEstratigrafica() {
               </select>
               <span style={{ fontFamily: MONO, fontSize: 10.5, color: T.text3 }}>
                 {SPX.toFixed(1)} px/m · alto ≈ {Math.round(MT + totalH * SPX + legH)} px</span>
+              <span style={{ fontFamily: SERIF, fontStyle: "italic", color: T.text,
+                marginLeft: 6 }}>Borde:</span>
+              <select value={edgeStyle} onChange={e => setEdgeStyle(e.target.value)}
+                style={{ fontFamily: MONO, fontSize: 11, padding: "4px 8px",
+                  border: `1px solid ${T.inputBd}`, background: T.inputBg,
+                  color: T.text, borderRadius: 3 }}>
+                <option value="straight">Recto</option>
+                <option value="freehand">Mano alzada</option>
+              </select>
             </div>
             <div id="printarea" style={{
               background: T.card, border: `1px solid ${T.cardEdge}`,
@@ -2191,10 +2227,20 @@ function ColumnaEstratigrafica() {
                     const hpx  = u.thickness * SPX;
                     const li   = findL(u.lithoId);
                     const gi   = findG(u.grainSize);
-                    const uw   = CW * gi[2];
+                    const uw   = u.lithoId === "covered" ? CW : CW * gi[2];
                     const hasInter = u.lithoId2 && u.lithoId2 !== u.lithoId;
 
                     if (!hasInter) {
+                      if (edgeStyle === "freehand" && u.lithoId !== "covered" && uw < CW) {
+                        return (
+                          <g key={u.id}>
+                            <rect x={CX} y={topY} width={CW} height={hpx}
+                              fill={T.card} opacity="0.94" />
+                            <path d={freehandUnitPath(CX, CX + uw, topY, hpx, i + 1)}
+                              fill={`url(#${li[2]})`} />
+                          </g>
+                        );
+                      }
                       return (
                         <g key={u.id}>
                           <rect x={CX} y={topY} width={uw} height={hpx} fill={`url(#${li[2]})`} />
@@ -2206,9 +2252,12 @@ function ColumnaEstratigrafica() {
                       );
                     }
 
-                    // Intercalated package — alternating horizontal bands
+                    // Intercalated package — alternating horizontal bands.
+                    // Cada litología conserva el ancho de SU granulometría → perfil dentado.
                     const li2    = findL(u.lithoId2);
                     const ratio  = u.lithoRatio ?? 0.5;
+                    const uwA    = uw;                     // principal (granulometría de la unidad)
+                    const uwB    = CW * findG(li2[3])[2];  // secundaria (su grano por defecto)
                     const nCyc   = Math.max(2, Math.min(28, Math.floor(hpx / 30)));
                     const cycH   = hpx / nCyc;
                     const aH     = cycH * ratio;
@@ -2217,21 +2266,19 @@ function ColumnaEstratigrafica() {
                       const yStart = topY + k * cycH;
                       bands.push(
                         <rect key={`${u.id}-a${k}`} x={CX} y={yStart}
-                          width={uw} height={aH} fill={`url(#${li[2]})`} />,
+                          width={uwA} height={aH} fill={`url(#${li[2]})`} />,
                         <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
-                          width={uw} height={cycH - aH} fill={`url(#${li2[2]})`} />,
+                          width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
-                          x2={CX + uw} y2={yStart + aH}
+                          x2={CX + Math.max(uwA, uwB)} y2={yStart + aH}
                           stroke="rgba(0,0,0,0.22)" strokeWidth="0.4" />
                       );
                     }
                     return (
                       <g key={u.id}>
+                        <rect x={CX} y={topY} width={CW} height={hpx}
+                          fill={T.card} opacity="0.94" />
                         {bands}
-                        {uw < CW && (
-                          <rect x={CX + uw} y={topY} width={CW - uw} height={hpx}
-                            fill={T.card} opacity="0.94" />
-                        )}
                       </g>
                     );
                   })}
