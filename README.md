@@ -47,13 +47,30 @@ columna-estratigrafica/
 
 ## Funciones
 
-- Catálogo de litologías con patrones (clásticas, carbonatos, lavas,
-  piroclásticas, volcaniclásticas, intrusivas).
+- Catálogo de **41 litologías** con patrones (clásticas, carbonatos, lavas,
+  piroclásticas, volcaniclásticas, **plutónicas, hipabisales y metamórficas**).
 - Paquetes de intercalación (dos litologías en bandas alternadas).
 - Granulometría que controla el ancho de la columna (perfil de competencia).
+- **Pista de símbolos de estructuras sedimentarias** (22 símbolos estándar:
+  estratificación cruzada, ondulitas, gradación, calcos, bioturbación, etc.).
+- **Columnas de Edad y Formación/Miembro** (crono + litoestratigrafía) a la
+  izquierda, con bandas fusionadas y rótulos verticales.
+- **Pista de muestras** ubicadas a su altura real, con 8 tipos coloreados
+  (geoquímica, datación, paleomag, petrografía, etc.).
+- **Eje granulométrico de Wentworth rotulado** + **selector visual Munsell**.
 - Contactos: neto, gradacional, erosivo, discordancia angular.
 - Color Munsell, estructuras, fósiles/datación, ambiente, paleocorriente,
   meteorización y notas por unidad.
 - Fotos de afloramiento (se comprimen automáticamente) con visor ampliado.
-- Importar / exportar **CSV** (con template y guía de valores integrada).
-- Exportar la columna a **SVG** (vectorial, para informes).
+- **Pestaña de Ubicación / Metadatos** con coordenadas **UTM** (datum, huso,
+  hemisferio), proyecto, localidad, autor, fecha, cota y azimut.
+
+### Formatos de archivo
+
+- **Guardar / Abrir proyecto** (`.col.json`): formato nativo, **sin pérdida**
+  (incluye fotos y metadata). Es el recomendado para seguir trabajando.
+- **CSV**: importar / exportar (con template y guía integrada). No guarda fotos.
+- **SVG**: columna vectorial para informes.
+- **PDF**: vía impresión (botón 🖨), solo la columna, lista para publicación.
+- **KMZ (Google Earth)**: convierte las UTM a lat/long y empaqueta la columna
+  como imagen georreferenciada. Funciona offline, sin librerías externas.

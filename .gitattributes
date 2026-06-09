@@ -1,0 +1,10 @@
+# Normalizar saltos de línea
+* text=auto eol=lf
+*.ps1 text eol=crlf
+
+# Vendor: no contar en estadísticas de lenguaje de GitHub
+vendor/* binary linguist-vendored
+*.min.js linguist-vendored
+
+# HTML compilado: marcar como generado (la fuente es src/app.jsx)
+dist/*.html linguist-generated
