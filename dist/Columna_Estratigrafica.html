@@ -632,11 +632,13 @@ const EDGE_MARGIN = 5;
 
 // Borde derecho "a mano alzada" (baja sinuosidad): camino cerrado de la unidad
 // con la arista derecha ondulada suavemente alrededor de xr. Determinista por seed.
-function freehandUnitPath(x0, xr, topY, hpx, seed) {
-  const step = 11;
-  const n = Math.max(2, Math.round(hpx / step));
-  const A1 = 1.9, A2 = 0.9, f1 = 0.13, f2 = 0.31, ph = seed * 1.7;
+function freehandUnitPath(x0, xr, topY, hpx, seed, fscale = 1, ampScale = 1) {
+  const A1 = 1.9 * ampScale, A2 = 0.9 * ampScale;
+  const f1 = 0.13 * fscale, f2 = 0.31 * fscale, ph = seed * 1.7;
   const ox = y => A1 * Math.sin(y * f1 + ph) + A2 * Math.sin(y * f2 + ph * 1.3);
+  // muestreo más denso cuando hay más sinuosidad (fscale alto) → curva suave
+  const step = Math.max(2.5, Math.min(11, 9 / fscale));
+  const n = Math.max(2, Math.round(hpx / step));
   let d = `M${x0},${topY.toFixed(1)}`;
   for (let i = 0; i <= n; i++) {
     const y = topY + hpx * i / n;
@@ -2266,6 +2268,13 @@ function ColumnaEstratigrafica() {
                     const nCyc   = Math.max(2, Math.min(28, Math.floor(hpx / 30)));
                     const cycH   = hpx / nCyc;
                     const aH     = cycH * ratio;
+                    // Bandas delgadas → más sinuosidad (fscale) y menor amplitud,
+                    // para que no se vea tosco.
+                    const bhA = aH, bhB = cycH - aH;
+                    const fsA = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhA)));
+                    const fsB = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhB)));
+                    const asA = Math.max(0.7, Math.min(1, bhA / 22));
+                    const asB = Math.max(0.7, Math.min(1, bhB / 22));
                     const bands  = [];
                     const fh = edgeStyle === "freehand";
                     for (let k = 0; k < nCyc; k++) {
@@ -2273,12 +2282,12 @@ function ColumnaEstratigrafica() {
                       bands.push(
                         fh
                           ? <path key={`${u.id}-a${k}`} fill={`url(#${li[2]})`}
-                              d={freehandUnitPath(CX, Math.min(CX + uwA, CX + CW - EDGE_MARGIN), yStart, aH, i + 1)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwA, CX + CW - EDGE_MARGIN), yStart, aH, i + 1, fsA, asA)} />
                           : <rect key={`${u.id}-a${k}`} x={CX} y={yStart}
                               width={uwA} height={aH} fill={`url(#${li[2]})`} />,
                         fh
                           ? <path key={`${u.id}-b${k}`} fill={`url(#${li2[2]})`}
-                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH - aH, i + 101)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH - aH, i + 101, fsB, asB)} />
                           : <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
                               width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
