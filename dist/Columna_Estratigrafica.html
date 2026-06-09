@@ -626,6 +626,10 @@ const SAMPLE_TYPES = [
 ];
 const findST = id => SAMPLE_TYPES.find(t => t[0] === id) ?? SAMPLE_TYPES[7];
 
+// Margen reservado a la derecha para que el borde sinuoso quepa incluso cuando
+// la granulometría es máxima (ancho completo).
+const EDGE_MARGIN = 5;
+
 // Borde derecho "a mano alzada" (baja sinuosidad): camino cerrado de la unidad
 // con la arista derecha ondulada suavemente alrededor de xr. Determinista por seed.
 function freehandUnitPath(x0, xr, topY, hpx, seed) {
@@ -2231,12 +2235,13 @@ function ColumnaEstratigrafica() {
                     const hasInter = u.lithoId2 && u.lithoId2 !== u.lithoId;
 
                     if (!hasInter) {
-                      if (edgeStyle === "freehand" && u.lithoId !== "covered" && uw < CW) {
+                      if (edgeStyle === "freehand" && u.lithoId !== "covered") {
+                        const xr = Math.min(CX + uw, CX + CW - EDGE_MARGIN);
                         return (
                           <g key={u.id}>
                             <rect x={CX} y={topY} width={CW} height={hpx}
                               fill={T.card} opacity="0.94" />
-                            <path d={freehandUnitPath(CX, CX + uw, topY, hpx, i + 1)}
+                            <path d={freehandUnitPath(CX, xr, topY, hpx, i + 1)}
                               fill={`url(#${li[2]})`} />
                           </g>
                         );
@@ -2268,12 +2273,12 @@ function ColumnaEstratigrafica() {
                       bands.push(
                         fh
                           ? <path key={`${u.id}-a${k}`} fill={`url(#${li[2]})`}
-                              d={freehandUnitPath(CX, CX + uwA, yStart, aH, i + 1)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwA, CX + CW - EDGE_MARGIN), yStart, aH, i + 1)} />
                           : <rect key={`${u.id}-a${k}`} x={CX} y={yStart}
                               width={uwA} height={aH} fill={`url(#${li[2]})`} />,
                         fh
                           ? <path key={`${u.id}-b${k}`} fill={`url(#${li2[2]})`}
-                              d={freehandUnitPath(CX, CX + uwB, yStart + aH, cycH - aH, i + 101)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH - aH, i + 101)} />
                           : <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
                               width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
