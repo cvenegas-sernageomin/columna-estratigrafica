@@ -72,5 +72,7 @@ columna-estratigrafica/
 - **CSV**: importar / exportar (con template y guía integrada). No guarda fotos.
 - **SVG**: columna vectorial para informes.
 - **PDF**: vía impresión (botón 🖨), solo la columna, lista para publicación.
-- **KMZ (Google Earth)**: convierte las UTM a lat/long y empaqueta la columna
-  como imagen georreferenciada. Funciona offline, sin librerías externas.
+- **KMZ (Google Earth)**: ubica la columna en la **coordenada base**, dibuja la
+  **traza de la sección** (base→techo) y orienta la **vista** según el azimut del
+  recorrido (calculado de las UTM base/techo). Empaqueta la columna como imagen
+  georreferenciada. Funciona offline, sin librerías externas.

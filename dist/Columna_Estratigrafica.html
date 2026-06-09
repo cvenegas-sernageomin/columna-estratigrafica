@@ -684,7 +684,7 @@ const CSV_TEMPLATE = `thickness,lithology,lithology2,lithoRatio,color,grainSize,
 `;
 
 const META_KEYS = ["project","locality","author","date","datum","utmZone","utmHemi",
-  "utmE","utmN","elevation","azimuth","description"];
+  "utmE","utmN","utmE2","utmN2","elevation","azimuth","description"];
 function parseCsvMeta(text) {
   const out = {};
   text.replace(/^﻿/, "").split(/\r?\n/).forEach(line => {
@@ -806,6 +806,12 @@ function utmToLatLon(easting, northing, zone, isSouth) {
   return { lat: lat*180/Math.PI, lon: lon*180/Math.PI };
 }
 
+// Azimut (grados, 0-360 desde el N de cuadrícula) del recorrido (E1,N1) -> (E2,N2)
+function utmBearing(E1, N1, E2, N2) {
+  const az = Math.atan2(E2 - E1, N2 - N1) * 180 / Math.PI;
+  return (az + 360) % 360;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // KMZ — ZIP (método "store") + CRC32, sin librerías externas
 // ═══════════════════════════════════════════════════════════════
@@ -882,7 +888,7 @@ function svgToPngDataUrl(svgNode, scale = 2) {
     img.src = url;
   });
 }
-function buildKml(meta, units, lat, lon, hasImg) {
+function buildKml(meta, units, start, end, az, hasImg) {
   const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const totalH = units.reduce((s,u)=>s+u.thickness,0);
   let acc = 0;
@@ -894,11 +900,13 @@ function buildKml(meta, units, lat, lon, hasImg) {
   const metaRows = [
     ["Proyecto", meta.project], ["Localidad", meta.locality], ["Autor(es)", meta.author],
     ["Fecha", meta.date], ["Datum", meta.datum],
-    ["UTM", `${meta.utmZone||""}${meta.utmHemi||""}  E ${meta.utmE||""} / N ${meta.utmN||""}`],
-    ["Cota (m s.n.m.)", meta.elevation], ["Azimut sección", meta.azimuth],
+    ["UTM base", `${meta.utmZone||""}${meta.utmHemi||""}  E ${meta.utmE||""} / N ${meta.utmN||""}`],
+    end ? ["UTM techo", `E ${meta.utmE2||""} / N ${meta.utmN2||""}`] : null,
+    ["Azimut sección", (az != null && isFinite(az)) ? Math.round(az) + "°" : meta.azimuth],
+    ["Cota base (m s.n.m.)", meta.elevation],
     ["Espesor total", totalH.toFixed(2)+" m"], ["Nº unidades", String(units.length)],
-  ].filter(([,v]) => v && String(v).trim())
-   .map(([k,v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join("");
+  ].filter(r => r && r[1] && String(r[1]).trim())
+   .map(r => `<tr><td><b>${esc(r[0])}</b></td><td>${esc(r[1])}</td></tr>`).join("");
   const desc = `<![CDATA[
 <div style="font-family:sans-serif;font-size:12px;max-width:560px">
 <h3 style="margin:0 0 6px">${esc(meta.locality || meta.project || "Columna estratigráfica")}</h3>
@@ -911,15 +919,34 @@ ${hasImg ? `<p style="margin:8px 0"><img src="files/column.png" width="300"/></p
 </div>]]>`;
   const elev = parseFloat(meta.elevation); const ele = isFinite(elev) ? elev : 0;
   const name = esc(meta.locality || meta.project || "Columna estratigráfica");
+  const heading = (az != null && isFinite(az)) ? az
+    : (isFinite(parseFloat(meta.azimuth)) ? parseFloat(meta.azimuth) : 0);
+  const lookAt = `<LookAt><longitude>${start.lon.toFixed(8)}</longitude>`
+    + `<latitude>${start.lat.toFixed(8)}</latitude><altitude>${ele}</altitude>`
+    + `<heading>${heading.toFixed(1)}</heading><tilt>68</tilt><range>700</range>`
+    + `<altitudeMode>relativeToGround</altitudeMode></LookAt>`;
+  const azTxt = (az != null && isFinite(az)) ? Math.round(az) + "°" : (meta.azimuth || "");
+  let extra = "";
+  if (end) {
+    extra = `\n<Placemark><name>${name} (techo)</name>`
+      + `<Style><IconStyle><color>ff00aaff</color></IconStyle></Style>`
+      + `<Point><coordinates>${end.lon.toFixed(8)},${end.lat.toFixed(8)},0</coordinates></Point></Placemark>`
+      + `\n<Placemark><name>Traza de sección${azTxt ? " (az " + azTxt + ")" : ""}</name>`
+      + `<Style><LineStyle><color>ff0000ff</color><width>3</width></LineStyle></Style>`
+      + `<LineString><tessellate>1</tessellate><coordinates>`
+      + `${start.lon.toFixed(8)},${start.lat.toFixed(8)},0 ${end.lon.toFixed(8)},${end.lat.toFixed(8)},0`
+      + `</coordinates></LineString></Placemark>`;
+  }
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
 <Document>
 <name>${name}</name>
 <Placemark>
-<name>${name}</name>
+<name>${name} (base)</name>
+${lookAt}
 <description>${desc}</description>
-<Point><coordinates>${lon.toFixed(8)},${lat.toFixed(8)},${ele}</coordinates></Point>
-</Placemark>
+<Point><coordinates>${start.lon.toFixed(8)},${start.lat.toFixed(8)},${ele}</coordinates></Point>
+</Placemark>${extra}
 </Document>
 </kml>`;
 }
@@ -1289,7 +1316,9 @@ const DF = {
 const DEFAULT_META = {
   project: "", locality: "", author: "", date: "",
   datum: "WGS84", utmZone: "19", utmHemi: "S",
-  utmE: "", utmN: "", elevation: "", azimuth: "", description: "",
+  utmE: "", utmN: "",            // base / inicio de la sección
+  utmE2: "", utmN2: "",          // techo / fin de la sección
+  elevation: "", azimuth: "", description: "",
 };
 let nextId = 1;
 
@@ -1347,8 +1376,12 @@ function ColumnaEstratigrafica() {
   const legH = 24 + legCur + 16;
   const svgH     = MT + totalH * SPX + legH;
   const svgW     = SW;
+  const _e1 = parseFloat(meta.utmE), _n1 = parseFloat(meta.utmN);
+  const _e2 = parseFloat(meta.utmE2), _n2 = parseFloat(meta.utmN2);
+  const sectionAz = [_e1, _n1, _e2, _n2].every(Number.isFinite) ? utmBearing(_e1, _n1, _e2, _n2) : null;
   const metaUtm  = (meta.utmE && meta.utmN)
-    ? `UTM ${meta.utmZone || ""}${meta.utmHemi || ""} ${meta.utmE}E / ${meta.utmN}N` : "";
+    ? `UTM ${meta.utmZone || ""}${meta.utmHemi || ""} ${meta.utmE}E / ${meta.utmN}N`
+      + (sectionAz != null ? ` · Az ${Math.round(sectionAz)}°` : "") : "";
 
   const tickInt = totalH <= 3 ? 0.5 : totalH <= 15 ? 1 : totalH <= 50 ? 5 : 10;
   const ticks = [];
@@ -1466,19 +1499,24 @@ function ColumnaEstratigrafica() {
     }
     const zone = parseInt(meta.utmZone, 10) || 19;
     const isSouth = (meta.utmHemi || "S").toUpperCase() !== "N";
-    const { lat, lon } = utmToLatLon(E, N, zone, isSouth);
+    const start = utmToLatLon(E, N, zone, isSouth);
+    const E2 = parseFloat(meta.utmE2), N2 = parseFloat(meta.utmN2);
+    const hasEnd = isFinite(E2) && isFinite(N2);
+    const end = hasEnd ? utmToLatLon(E2, N2, zone, isSouth) : null;
+    const az = hasEnd ? utmBearing(E, N, E2, N2)
+      : (isFinite(parseFloat(meta.azimuth)) ? parseFloat(meta.azimuth) : null);
     let pngBytes = null;
     try {
       const svgNode = document.getElementById("colsvg");
       if (svgNode) pngBytes = dataUrlToBytes(await svgToPngDataUrl(svgNode, 2));
     } catch { /* la imagen es opcional */ }
-    const kml = buildKml(meta, units, lat, lon, !!pngBytes);
+    const kml = buildKml(meta, units, start, end, az, !!pngBytes);
     const entries = [{ name: "doc.kml", data: new TextEncoder().encode(kml) }];
     if (pngBytes) entries.push({ name: "files/column.png", data: pngBytes });
     const fname = ((meta.locality || meta.project || "columna").trim() || "columna")
       .replace(/[^\w\-]+/g, "_").slice(0, 60) + ".kmz";
     downloadBlob(fname, makeKmz(entries));
-    showToast(`✓ KMZ exportado (lat ${lat.toFixed(5)}, lon ${lon.toFixed(5)})`);
+    showToast(`✓ KMZ exportado${az != null ? ` · azimut ${Math.round(az)}°` : ""}`);
   };
 
   // ── Proyecto (.col.json) — guardado sin pérdida, incluye fotos ──
@@ -1587,7 +1625,7 @@ function ColumnaEstratigrafica() {
         <div style={{ fontSize: 11, fontFamily: MONO, color: T.gold,
                       letterSpacing: ".15em", borderLeft: `1px solid ${T.gold}`,
                       paddingLeft: 16, marginLeft: 6 }}>
-          EDITOR DE CAMPO · v3.5
+          EDITOR DE CAMPO · v3.6
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -2535,6 +2573,9 @@ function Section({ title, items, simple }) {
 function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle }) {
   const m = (k, v) => setMeta(p => ({ ...p, [k]: v }));
   const hint = { fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF };
+  const E1 = parseFloat(meta.utmE), N1 = parseFloat(meta.utmN);
+  const E2 = parseFloat(meta.utmE2), N2 = parseFloat(meta.utmN2);
+  const secAz = [E1, N1, E2, N2].every(Number.isFinite) ? utmBearing(E1, N1, E2, N2) : null;
   return (
     <div style={{ padding: "12px 16px", display: "flex",
                   flexDirection: "column", gap: 9, flex: 1 }}>
@@ -2586,29 +2627,56 @@ function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle }) {
         </label>
       </div>
 
-      <label style={lblStyle}>Este (m E)
-        <input type="number" step="any" placeholder="345678"
-          value={meta.utmE} onChange={e => m("utmE", e.target.value)}
-          style={inputStyle} />
-      </label>
-      <label style={lblStyle}>Norte (m N)
-        <input type="number" step="any" placeholder="6123456"
-          value={meta.utmN} onChange={e => m("utmN", e.target.value)}
-          style={inputStyle} />
-      </label>
-      <label style={lblStyle}>Cota / Elevación (m s.n.m.)
+      <div style={{ ...secStyle, color: T.green }}>Base / inicio (pie de la columna)</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label style={{ ...lblStyle, flex: 1 }}>Este (m E)
+          <input type="number" step="any" placeholder="345678"
+            value={meta.utmE} onChange={e => m("utmE", e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ ...lblStyle, flex: 1 }}>Norte (m N)
+          <input type="number" step="any" placeholder="6123456"
+            value={meta.utmN} onChange={e => m("utmN", e.target.value)} style={inputStyle} />
+        </label>
+      </div>
+
+      <div style={{ ...secStyle, color: T.rust }}>Techo / fin (cima de la columna)</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label style={{ ...lblStyle, flex: 1 }}>Este (m E)
+          <input type="number" step="any" placeholder="345820"
+            value={meta.utmE2} onChange={e => m("utmE2", e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ ...lblStyle, flex: 1 }}>Norte (m N)
+          <input type="number" step="any" placeholder="6123610"
+            value={meta.utmN2} onChange={e => m("utmN2", e.target.value)} style={inputStyle} />
+        </label>
+      </div>
+
+      <label style={lblStyle}>Cota / Elevación de la base (m s.n.m.)
         <input type="number" step="any" placeholder="1240"
           value={meta.elevation} onChange={e => m("elevation", e.target.value)}
           style={inputStyle} />
       </label>
+
+      {secAz != null && (
+        <div style={{ padding: "8px 10px", background: "#E3EEDD",
+          border: `1px solid ${T.green}`, borderRadius: 3, fontSize: 11,
+          color: T.text, fontFamily: MONO }}>
+          ↳ Azimut de sección (base→techo): <b>{Math.round(secAz)}°</b>
+          <div style={{ ...hint, marginTop: 2 }}>
+            Dirección del recorrido (no el rumbo de los estratos). Orienta la
+            vista al exportar a Google Earth.
+          </div>
+        </div>
+      )}
       <div style={hint}>
-        Chile continental: huso 18 o 19, hemisferio S, datum WGS84. Las UTM se
-        convierten a lat/long al exportar a <b>Google Earth (KMZ)</b>.
+        Chile continental: huso 18 o 19, hemisferio S, datum WGS84. Cargá la
+        <b> base</b> para ubicar la columna; agregá el <b>techo</b> para calcular
+        el azimut y dibujar la traza en <b>Google Earth (KMZ)</b>.
       </div>
 
       <div style={secStyle}>· Sección ·</div>
-      <label style={lblStyle}>Azimut / rumbo de la sección
-        <input type="text" placeholder="N30°E"
+      <label style={lblStyle}>Azimut manual (grados; usado solo si no cargás el techo)
+        <input type="text" placeholder="30"
           value={meta.azimuth} onChange={e => m("azimuth", e.target.value)}
           style={inputStyle} />
       </label>
