@@ -1916,13 +1916,20 @@ function ColumnaEstratigrafica() {
                     const cycH   = hpx / nCyc;
                     const aH     = cycH * ratio;
                     const bands  = [];
+                    const fh = edgeStyle === "freehand";
                     for (let k = 0; k < nCyc; k++) {
                       const yStart = topY + k * cycH;
                       bands.push(
-                        <rect key={`${u.id}-a${k}`} x={CX} y={yStart}
-                          width={uwA} height={aH} fill={`url(#${li[2]})`} />,
-                        <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
-                          width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
+                        fh
+                          ? <path key={`${u.id}-a${k}`} fill={`url(#${li[2]})`}
+                              d={freehandUnitPath(CX, CX + uwA, yStart, aH, i + 1)} />
+                          : <rect key={`${u.id}-a${k}`} x={CX} y={yStart}
+                              width={uwA} height={aH} fill={`url(#${li[2]})`} />,
+                        fh
+                          ? <path key={`${u.id}-b${k}`} fill={`url(#${li2[2]})`}
+                              d={freehandUnitPath(CX, CX + uwB, yStart + aH, cycH - aH, i + 101)} />
+                          : <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
+                              width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
                           x2={CX + Math.max(uwA, uwB)} y2={yStart + aH}
                           stroke="rgba(0,0,0,0.22)" strokeWidth="0.4" />
