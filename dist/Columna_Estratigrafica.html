@@ -2,8 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Columna Estratigráfica · Editor de Campo</title>
+
+  <!-- ░░ PWA (instalable en Android / iOS cuando se sirve por https) ░░ -->
+  <meta name="theme-color" content="#3A2818" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Columna" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%233A2818'/><rect x='4' y='2' width='8' height='3' fill='%23A87C2A'/><rect x='4' y='6' width='8' height='3' fill='%232D5F4E'/><rect x='4' y='10' width='8' height='4' fill='%23A8553C'/></svg>" />
   <style>
     * { box-sizing: border-box; }
@@ -2876,6 +2885,16 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ColumnaEstratigrafi
       const b = document.getElementById("boot");
       if (b) b.remove();
     });
+  </script>
+
+  <!-- ░░ Registro del service worker (PWA) — solo con https o localhost ░░ -->
+  <script>
+    if ("serviceWorker" in navigator &&
+        (location.protocol === "https:" || location.hostname === "localhost")) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
   </script>
 </body>
 </html>

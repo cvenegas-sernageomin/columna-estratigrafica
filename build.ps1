@@ -29,11 +29,19 @@ $out = $out.Replace("/*__APP__*/",      (Protect-Script $app))
 
 $distDir = Join-Path $root "dist"
 if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
-$dest = Join-Path $distDir "Columna_Estratigrafica.html"
 
 # UTF-8 con BOM para que los acentos se vean bien al abrir con doble clic
 $enc = New-Object System.Text.UTF8Encoding($true)
+# Archivo para compartir (nombre claro) y entrada de la PWA (index.html)
+$dest = Join-Path $distDir "Columna_Estratigrafica.html"
 [System.IO.File]::WriteAllText($dest, $out, $enc)
+[System.IO.File]::WriteAllText((Join-Path $distDir "index.html"), $out, $enc)
+
+# Recursos PWA: manifest, service worker e íconos
+Copy-Item (Join-Path $root "src\pwa\*") $distDir -Force
+# .nojekyll: evita el procesamiento Jekyll al servir en GitHub Pages
+[System.IO.File]::WriteAllText((Join-Path $distDir ".nojekyll"), "")
 
 $kb = [math]::Round((Get-Item $dest).Length / 1KB, 1)
-Write-Host "OK  ->  dist\Columna_Estratigrafica.html  ($kb KB)" -ForegroundColor Green
+Write-Host "OK  ->  dist\Columna_Estratigrafica.html  +  dist\index.html  ($kb KB)" -ForegroundColor Green
+Write-Host "OK  ->  PWA: manifest.webmanifest, sw.js, icon-192/512, apple-touch-icon" -ForegroundColor Green
