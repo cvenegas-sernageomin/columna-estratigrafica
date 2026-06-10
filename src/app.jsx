@@ -1,5 +1,5 @@
 // Browser build: React llega como global (vendor/react.*). Sin bundler.
-const { useState, useMemo, useRef } = React;
+const { useState, useMemo, useRef, useEffect } = React;
 
 // ═══════════════════════════════════════════════════════════════
 // THEME — Warm geological field-notebook palette
@@ -1025,6 +1025,14 @@ function ColumnaEstratigrafica() {
   const [samples,    setSamples]    = useState([]);
   const [scaleMode,  setScaleMode]  = useState("auto");
   const [edgeStyle,  setEdgeStyle]  = useState("freehand");
+  const [vw,         setVw]         = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+  const [mobileView, setMobileView] = useState("edit");
+  useEffect(() => {
+    const onR = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  const isNarrow = vw < 760;
 
   const csvInputRef   = useRef(null);
   const photoInputRef = useRef(null);
@@ -1314,7 +1322,7 @@ function ColumnaEstratigrafica() {
         <div style={{ fontSize: 11, fontFamily: MONO, color: T.gold,
                       letterSpacing: ".15em", borderLeft: `1px solid ${T.gold}`,
                       paddingLeft: 16, marginLeft: 6 }}>
-          EDITOR DE CAMPO · v3.9
+          EDITOR DE CAMPO · v4.0
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -1339,13 +1347,33 @@ function ColumnaEstratigrafica() {
       </div>
 
       {/* ═══ MAIN AREA ═══ */}
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0,
+        flexDirection: isNarrow ? "column" : "row" }}>
+
+        {/* ═══ CONMUTADOR MÓVIL (Editar / Columna) ═══ */}
+        {isNarrow && (
+          <div style={{ display: "flex", flexShrink: 0,
+            background: T.panelAlt, borderBottom: `1px solid ${T.border}` }}>
+            {[["edit", "✎ Editar"], ["column", "📊 Columna"]].map(([id, lbl]) => (
+              <button key={id} onClick={() => setMobileView(id)} style={{
+                flex: 1, padding: "13px 6px", fontFamily: MONO, fontSize: 13.5,
+                border: "none", cursor: "pointer", letterSpacing: ".03em",
+                borderBottom: `3px solid ${mobileView === id ? T.green : "transparent"}`,
+                background: mobileView === id ? T.panel : "transparent",
+                color: mobileView === id ? T.text : T.text3,
+                fontWeight: mobileView === id ? 700 : 500 }}>{lbl}</button>
+            ))}
+          </div>
+        )}
 
         {/* ═══ FORM PANEL ═══ */}
         <div style={{
-          width: 296, flexShrink: 0, background: T.panel,
-          borderRight: `1px solid ${T.border}`,
-          display: "flex", flexDirection: "column", overflowY: "auto",
+          width: isNarrow ? "100%" : 296,
+          flex: isNarrow ? "1 1 auto" : "0 0 auto", minHeight: 0,
+          background: T.panel,
+          borderRight: isNarrow ? "none" : `1px solid ${T.border}`,
+          display: (!isNarrow || mobileView === "edit") ? "flex" : "none",
+          flexDirection: "column", overflowY: "auto",
         }}>
           {/* TAB BAR */}
           <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`,
@@ -1686,8 +1714,11 @@ function ColumnaEstratigrafica() {
         </div>
 
         {/* ═══ COLUMN PANEL ═══ */}
-        <div style={{ flex: 1, overflow: "auto", padding: "20px 24px",
-                      minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, overflow: "auto",
+                      padding: isNarrow ? "12px" : "20px 24px",
+                      minWidth: 0, minHeight: 0,
+                      display: (!isNarrow || mobileView === "column") ? "flex" : "none",
+                      flexDirection: "column" }}>
           {units.length === 0 ? (
             <div style={{
               alignSelf: "center", margin: "auto",

@@ -9,6 +9,10 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     #root { min-height: 100vh; }
+    /* Móvil: inputs a 16px para que iOS no haga zoom al enfocar */
+    @media (max-width: 760px) {
+      input, select, textarea { font-size: 16px !important; }
+    }
     /* Pantalla de carga mientras Babel transpila */
     #boot {
       position: fixed; inset: 0; display: flex; align-items: center;
