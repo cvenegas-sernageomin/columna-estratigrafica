@@ -39,6 +39,12 @@ $dest = Join-Path $distDir "Columna_Estratigrafica.html"
 
 # Recursos PWA: manifest, service worker e íconos
 Copy-Item (Join-Path $root "src\pwa\*") $distDir -Force
+# Sella el service worker con un id de build → nueva caché en cada build, así
+# las actualizaciones llegan a quien ya instaló la PWA (no se queda en la vieja).
+$swPath  = Join-Path $distDir "sw.js"
+$buildId = Get-Date -Format "yyyyMMddHHmmss"
+$sw = [System.IO.File]::ReadAllText($swPath).Replace("__BUILDID__", $buildId)
+[System.IO.File]::WriteAllText($swPath, $sw, (New-Object System.Text.UTF8Encoding($false)))
 # .nojekyll: evita el procesamiento Jekyll al servir en GitHub Pages
 [System.IO.File]::WriteAllText((Join-Path $distDir ".nojekyll"), "")
 

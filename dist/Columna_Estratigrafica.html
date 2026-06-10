@@ -958,9 +958,11 @@ ${hasImg ? `<p style="margin:8px 0"><img src="files/column.png" width="300"/></p
   const name = esc(meta.locality || meta.project || "Columna estratigráfica");
   const heading = (az != null && isFinite(az)) ? az
     : (isFinite(parseFloat(meta.azimuth)) ? parseFloat(meta.azimuth) : 0);
+  // Cámara en la base mirando hacia el techo: heading = azimut del recorrido,
+  // tilt alto (casi horizontal) para "mirar hacia el techo" en vez de picado.
   const lookAt = `<LookAt><longitude>${start.lon.toFixed(8)}</longitude>`
     + `<latitude>${start.lat.toFixed(8)}</latitude><altitude>${ele}</altitude>`
-    + `<heading>${heading.toFixed(1)}</heading><tilt>68</tilt><range>700</range>`
+    + `<heading>${heading.toFixed(1)}</heading><tilt>78</tilt><range>550</range>`
     + `<altitudeMode>relativeToGround</altitudeMode></LookAt>`;
   const azTxt = (az != null && isFinite(az)) ? Math.round(az) + "°" : (meta.azimuth || "");
   let extra = "";
@@ -974,18 +976,34 @@ ${hasImg ? `<p style="margin:8px 0"><img src="files/column.png" width="300"/></p
       + `${start.lon.toFixed(8)},${start.lat.toFixed(8)},0 ${end.lon.toFixed(8)},${end.lat.toFixed(8)},0`
       + `</coordinates></LineString></Placemark>`;
   }
+  // Tour: garantiza el vuelo a la base (con el azimut) + abrir el globo, con un
+  // clic en "Reproducir". El LookAt a nivel Document no siempre auto-vuela.
+  const tour = `\n<gx:Tour><name>▶ Volar a la base (vista azimut)</name><gx:Playlist>`
+    + `<gx:FlyTo><gx:duration>2.5</gx:duration><gx:flyToMode>bounce</gx:flyToMode>${lookAt}</gx:FlyTo>`
+    + `<gx:AnimatedUpdate><Update><targetHref></targetHref><Change>`
+    + `<Placemark targetId="basePM"><gx:balloonVisibility>1</gx:balloonVisibility></Placemark>`
+    + `</Change></Update></gx:AnimatedUpdate>`
+    + `</gx:Playlist></gx:Tour>`;
+  // Vista "overlay": la columna fijada en pantalla (toggle aparte, apagada por defecto).
+  const overlay = hasImg
+    ? `\n<ScreenOverlay><name>Columna (overlay en pantalla)</name><visibility>0</visibility>`
+      + `<Icon><href>files/column.png</href></Icon>`
+      + `<overlayXY x="1" y="1" xunits="fraction" yunits="fraction"/>`
+      + `<screenXY x="0.99" y="0.97" xunits="fraction" yunits="fraction"/>`
+      + `<size x="0" y="0.92" xunits="fraction" yunits="fraction"/></ScreenOverlay>`
+    : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
 <Document>
 <name>${name}</name>
-${lookAt}
+${lookAt}${tour}
 <Placemark id="basePM">
 <name>${name} (base)</name>
 <gx:balloonVisibility>1</gx:balloonVisibility>
 ${lookAt}
 <description>${desc}</description>
 <Point><coordinates>${start.lon.toFixed(8)},${start.lat.toFixed(8)},${ele}</coordinates></Point>
-</Placemark>${extra}
+</Placemark>${extra}${overlay}
 </Document>
 </kml>`;
 }
@@ -1681,7 +1699,7 @@ function ColumnaEstratigrafica() {
         <div style={{ fontSize: 11, fontFamily: MONO, color: T.gold,
                       letterSpacing: ".15em", borderLeft: `1px solid ${T.gold}`,
                       paddingLeft: 16, marginLeft: 6 }}>
-          EDITOR DE CAMPO · v4.0
+          EDITOR DE CAMPO · v4.1
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
