@@ -194,6 +194,18 @@ const WEATH = [
 const findL = id => LITH.find(l => l[0] === id) ?? LITH[2];
 const findG = id => GRAIN.find(g => g[0] === id) ?? GRAIN[4];
 
+// Calcula espesor real Badgley/Ragan a partir de los campos de una unidad.
+// Devuelve null si faltan datos.
+function unitGeometry(u) {
+  const rumboAz = parseRumbo(u.rumbo);
+  if (rumboAz == null) return null;
+  return realThicknessBadgley({
+    rumboAz, dirBuz: u.dirBuz || "derecha", manteo: u.manteo,
+    azTraza: u.azTraza, dh: u.dh, deltaH: u.deltaH,
+    signChoice: u.signChoice || "neg",
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SEDIMENTARY STRUCTURES — librería de símbolos  [id, label, group]
 // ═══════════════════════════════════════════════════════════════
@@ -348,7 +360,7 @@ const cWid = t => (t==="unconformity"||t==="erosive") ? 2 : 1.3;
 // ═══════════════════════════════════════════════════════════════
 const CSV_HEADERS = ["thickness","lithology","lithology2","lithoRatio","color","grainSize","structures",
   "structSymbols","fossilsDating","contactBottom","environment","paleocurrent","weathering","notes",
-  "age","formation"];
+  "age","formation","rumbo","manteo","dirBuz","azTraza","dh","deltaH","signChoice"];
 
 const CSV_TEMPLATE = `thickness,lithology,lithology2,lithoRatio,color,grainSize,structures,fossilsDating,contactBottom,environment,paleocurrent,weathering,notes
 3.50,andesite,,,"5GY 4/1 gris verdoso oscuro",coherent,"Disyunción columnar, vesículas",,sharp,Volcánico subaéreo,,ligeramente alterado,Colada de lava basal
@@ -415,6 +427,8 @@ function generateCsv(units, meta, samples) {
       contactBottom: u.contactBottom, environment: u.environment,
       paleocurrent: u.paleocurrent, weathering: u.weathering, notes: u.notes,
       age: u.age, formation: u.formation,
+      rumbo: u.rumbo, manteo: u.manteo, dirBuz: u.dirBuz, azTraza: u.azTraza,
+      dh: u.dh, deltaH: u.deltaH, signChoice: u.signChoice,
     };
     return esc(map[h]);
   }).join(","));
@@ -488,6 +502,90 @@ function utmToLatLon(easting, northing, zone, isSouth) {
 function utmBearing(E1, N1, E2, N2) {
   const az = Math.atan2(E2 - E1, N2 - N1) * 180 / Math.PI;
   return (az + 360) % 360;
+}
+
+// Lat/Lon (WGS84) -> UTM. Devuelve {E, N, zone, isSouth}.
+function latLonToUtm(lat, lon, forceZone, forceSouth) {
+  const a = 6378137.0, f = 1 / 298.257223563, k0 = 0.9996;
+  const e2 = f * (2 - f), eP2 = e2 / (1 - e2);
+  const zone = forceZone || Math.floor((lon + 180) / 6) + 1;
+  const isSouth = (forceSouth != null) ? forceSouth : (lat < 0);
+  const lonOrigin = ((zone - 1) * 6 - 180 + 3) * Math.PI / 180;
+  const phi = lat * Math.PI / 180, lam = lon * Math.PI / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(phi) ** 2);
+  const T = Math.tan(phi) ** 2;
+  const C = eP2 * Math.cos(phi) ** 2;
+  const A = Math.cos(phi) * (lam - lonOrigin);
+  const M = a * ((1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256) * phi
+    - (3*e2/8 + 3*e2*e2/32 + 45*e2*e2*e2/1024) * Math.sin(2*phi)
+    + (15*e2*e2/256 + 45*e2*e2*e2/1024) * Math.sin(4*phi)
+    - (35*e2*e2*e2/3072) * Math.sin(6*phi));
+  const E = k0 * N * (A + (1-T+C)*A**3/6 + (5-18*T+T*T+72*C-58*eP2)*A**5/120) + 500000;
+  let Nn = k0 * (M + N*Math.tan(phi)*(A*A/2 + (5-T+9*C+4*C*C)*A**4/24
+    + (61-58*T+T*T+600*C-330*eP2)*A**6/720));
+  if (isSouth) Nn += 10000000;
+  return { E, N: Nn, zone, isSouth };
+}
+
+// Espesor estratigráfico real (fórmula de Badgley / Ragan, planar):
+//   e = dh · sin(δ) · |cos(γ)|  ±  Δh · cos(δ)
+//
+// rumboAz: azimut del rumbo del estrato (0-360°)
+// dirBuz : "derecha" o "izquierda" del rumbo (define dirección de buzamiento)
+// manteo : dip δ del estrato (0-90°)
+// azTraza: azimut de la traza/recorrido (0-360°)
+// dh     : largo de la traza en planta (m, horizontal)
+// deltaH : desnivel topográfico (+ asciende, − desciende a lo largo de la traza)
+// signChoice: "neg" cuando la traza asciende en el MISMO sentido del buzamiento,
+//             "pos" cuando asciende en sentido CONTRARIO al buzamiento.
+//
+// Devuelve { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo } o null.
+function normAz(a) { return ((a % 360) + 360) % 360; }
+function ruaToAz(str) {
+  const m = String(str || "").trim().toUpperCase()
+    .match(/^(N|S)\s*(\d+(?:\.\d+)?)\s*[°]?\s*(E|W|O)$/);
+  if (!m) return null;
+  const a = parseFloat(m[2]);
+  if (a < 0 || a > 90) return null;
+  if (m[1] === "N" && m[3] === "E") return a;
+  if (m[1] === "N" && (m[3] === "W" || m[3] === "O")) return 360 - a;
+  if (m[1] === "S" && m[3] === "E") return 180 - a;
+  if (m[1] === "S" && (m[3] === "W" || m[3] === "O")) return 180 + a;
+  return null;
+}
+// Acepta número (azimut 0-360) o cuadrantal (N30°E, S45W, etc.). Devuelve az o null.
+function parseRumbo(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  const n = parseFloat(s);
+  if (!isNaN(n) && /^-?\d+(\.\d+)?$/.test(s)) {
+    if (n < 0 || n > 360) return null;
+    return normAz(n);
+  }
+  return ruaToAz(s);
+}
+
+function realThicknessBadgley({ rumboAz, dirBuz, manteo, azTraza, dh, deltaH, signChoice }) {
+  const δ = parseFloat(manteo);
+  const azt = parseFloat(azTraza);
+  const d = parseFloat(dh);
+  const Δh = parseFloat(deltaH);
+  if (rumboAz == null || isNaN(δ) || δ < 0 || δ > 90 ||
+      isNaN(azt) || isNaN(d) || d < 0 || isNaN(Δh)) return null;
+  const azBuz = dirBuz === "izquierda" ? normAz(rumboAz - 90) : normAz(rumboAz + 90);
+  let gamma = Math.abs(normAz(azt) - azBuz);
+  if (gamma > 180) gamma = 360 - gamma;
+  const sinδ = Math.sin(δ * Math.PI/180);
+  const cosδ = Math.cos(δ * Math.PI/180);
+  const cosG = Math.abs(Math.cos(gamma * Math.PI/180));
+  const termPlani = d * sinδ * cosG;
+  const termTopo  = Math.abs(Δh) * cosδ;
+  const sgnDh = Δh >= 0 ? 1 : -1;
+  const espesor = signChoice === "pos"
+    ? termPlani + sgnDh * termTopo
+    : termPlani - sgnDh * termTopo;
+  const manteoAparente = Math.atan(Math.tan(δ * Math.PI/180) * cosG) * 180/Math.PI;
+  return { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo, cosG };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1017,6 +1115,14 @@ const DF = {
   structures: "", structSymbols: [], fossilsDating: "", contactBottom: "sharp",
   environment: "", paleocurrent: "", weathering: "fresco", notes: "",
   age: "", formation: "",
+  // Orientación y geometría (Badgley/Ragan)
+  rumbo: "",        // texto (azimut o cuadrantal); se parsea con parseRumbo
+  manteo: "",       // dip δ (°)
+  dirBuz: "derecha",// "derecha" o "izquierda" del rumbo
+  azTraza: "",      // azimut del recorrido en esa unidad (°)
+  dh: "",           // largo de traza en planta (m)
+  deltaH: "",       // desnivel topográfico (+ asciende, − desciende)
+  signChoice: "neg",// "neg" mismo sentido buzamiento, "pos" contrario
   photo: null, photoCaption: "",
 };
 const DEFAULT_META = {
@@ -1105,17 +1211,30 @@ function ColumnaEstratigrafica() {
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2400); };
 
   // ── Handlers ─────────────────────────────────────────────────
+  // El espesor que dibuja la columna ES el espesor REAL calculado con Badgley.
+  // Si no hay datos válidos de orientación + dh + Δh, se intenta usar un
+  // fallback: thickness manual del campo (compatibilidad con columnas antiguas).
+  const realFor = u => {
+    const r = unitGeometry(u);
+    if (r && isFinite(r.espesor)) return Math.abs(r.espesor);
+    const t = parseFloat(u.thickness);
+    return (isFinite(t) && t > 0) ? t : null;
+  };
   const doAdd = () => {
-    const t = parseFloat(f.thickness);
-    if (!t || t <= 0) return;
+    const t = realFor(f);
+    if (t == null || t <= 0) { showToast("⚠ Cargá rumbo, manteo, dh y Δh (o espesor manual)"); return; }
     setUnits(p => [...p, { ...f, id: `u${nextId++}`, thickness: t }]);
+    // Repite ciertos campos cómodos en la nueva unidad, y precarga azTraza con el azimut UTM
     setF(p => ({ ...DF, lithoId: p.lithoId, grainSize: p.grainSize,
                  lithoId2: p.lithoId2, lithoRatio: p.lithoRatio,
-                 contactBottom: p.contactBottom, environment: p.environment }));
+                 contactBottom: p.contactBottom, environment: p.environment,
+                 rumbo: p.rumbo, manteo: p.manteo, dirBuz: p.dirBuz,
+                 azTraza: sectionAz != null ? String(Math.round(sectionAz)) : p.azTraza,
+                 signChoice: p.signChoice }));
   };
   const doSave = () => {
-    const t = parseFloat(f.thickness);
-    if (!t || t <= 0) return;
+    const t = realFor(f);
+    if (t == null || t <= 0) { showToast("⚠ Cargá rumbo, manteo, dh y Δh (o espesor manual)"); return; }
     setUnits(p => p.map(u => u.id === editId ? { ...f, id: editId, thickness: t } : u));
     setEditId(null); setF(DF);
   };
@@ -1179,6 +1298,13 @@ function ColumnaEstratigrafica() {
         notes:         r.notes || "",
         age:           r.age || "",
         formation:     r.formation || "",
+        rumbo:         r.rumbo || "",
+        manteo:        r.manteo || "",
+        dirBuz:        r.dirBuz === "izquierda" ? "izquierda" : "derecha",
+        azTraza:       r.azTraza || "",
+        dh:            r.dh || "",
+        deltaH:        r.deltaH || "",
+        signChoice:    r.signChoice === "pos" ? "pos" : "neg",
         photo: null, photoCaption: "",
       };
     }).filter(Boolean);
@@ -1269,6 +1395,35 @@ function ColumnaEstratigrafica() {
     } catch { showToast("⚠ Archivo de proyecto inválido"); }
     e.target.value = "";
   };
+  // ── GPS → autocompleta UTM (base o techo) ──
+  const captureGps = which => {
+    if (!("geolocation" in navigator)) {
+      showToast("⚠ Este dispositivo no expone GPS al navegador"); return;
+    }
+    if (location.protocol !== "https:" && location.hostname !== "localhost") {
+      showToast("⚠ El GPS solo funciona en https (abrí la PWA desde GitHub Pages)"); return;
+    }
+    showToast("📍 Pidiendo GPS… (acepta el permiso)");
+    navigator.geolocation.getCurrentPosition(pos => {
+      const zone = parseInt(meta.utmZone, 10) || Math.floor((pos.coords.longitude + 180) / 6) + 1;
+      const isSouth = (meta.utmHemi || "S").toUpperCase() !== "N";
+      const u = latLonToUtm(pos.coords.latitude, pos.coords.longitude, zone, isSouth);
+      const Ek = which === "base" ? "utmE" : "utmE2";
+      const Nk = which === "base" ? "utmN" : "utmN2";
+      setMeta(p => ({
+        ...p,
+        utmZone: String(u.zone), utmHemi: u.isSouth ? "S" : "N",
+        [Ek]: u.E.toFixed(1), [Nk]: u.N.toFixed(1),
+        ...(which === "base" && pos.coords.altitude != null && !p.elevation
+          ? { elevation: pos.coords.altitude.toFixed(0) } : {}),
+      }));
+      const acc = pos.coords.accuracy != null ? ` · ±${Math.round(pos.coords.accuracy)} m` : "";
+      showToast(`✓ GPS ${which === "base" ? "base" : "techo"}: E ${u.E.toFixed(0)} / N ${u.N.toFixed(0)}${acc}`);
+    }, err => {
+      showToast(`⚠ GPS: ${err.message || "no disponible"}`);
+    }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
+  };
+
   const printColumn = () => {
     if (units.length === 0) { showToast("⚠ No hay columna para imprimir"); return; }
     window.print();
@@ -1340,7 +1495,7 @@ function ColumnaEstratigrafica() {
         <div style={{ fontSize: 11, fontFamily: MONO, color: T.gold,
                       letterSpacing: ".15em", borderLeft: `1px solid ${T.gold}`,
                       paddingLeft: 16, marginLeft: 6 }}>
-          EDITOR DE CAMPO · v4.1
+          EDITOR DE CAMPO · v4.2
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
@@ -1410,7 +1565,8 @@ function ColumnaEstratigrafica() {
 
           {panelTab === "meta" && (
             <MetaForm meta={meta} setMeta={setMeta} inputStyle={inputStyle}
-              lblStyle={lblStyle} secStyle={secStyle} />
+              lblStyle={lblStyle} secStyle={secStyle} btnBase={btnBase}
+              captureGps={captureGps} />
           )}
 
           {panelTab === "samples" && (
@@ -1438,11 +1594,34 @@ function ColumnaEstratigrafica() {
             <div style={{ ...secStyle, marginTop: 0, paddingTop: 0,
                           borderTop: "none" }}>· Litología ·</div>
 
-            <label style={lblStyle}>Espesor (m)
-              <input type="number" min="0.01" step="0.1" placeholder="0.0"
-                value={f.thickness} onChange={e => ff("thickness", e.target.value)}
-                style={inputStyle} />
-            </label>
+            {(() => {
+              const g = unitGeometry(f);
+              if (g && isFinite(g.espesor)) {
+                return (
+                  <div style={{ padding: "8px 10px",
+                    background: g.espesor > 0.01 ? "#E3EEDD" : "#F8D8CC",
+                    border: `1px solid ${g.espesor > 0.01 ? T.green : T.danger}`,
+                    borderRadius: 3, fontSize: 11.5, fontFamily: MONO, color: T.text }}>
+                    Espesor real ≈ <b style={{ fontSize: 14 }}>{Math.abs(g.espesor).toFixed(2)} m</b>
+                    {g.espesor < 0 && (
+                      <span style={{ color: T.danger, marginLeft: 6 }}>(negativo — revisá signo)</span>
+                    )}
+                    <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
+                      fontStyle: "italic", marginTop: 2 }}>
+                      γ {g.gamma.toFixed(1)}° · manteo aparente {g.manteoAparente.toFixed(1)}°
+                      · plani {g.termPlani.toFixed(2)} m · topo {g.termTopo.toFixed(2)} m
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <label style={lblStyle}>Espesor manual (m, fallback)
+                  <input type="number" min="0.01" step="0.1" placeholder="usá orientación + dh + Δh"
+                    value={f.thickness} onChange={e => ff("thickness", e.target.value)}
+                    style={inputStyle} />
+                </label>
+              );
+            })()}
 
             <label style={lblStyle}>Litología
               <select value={f.lithoId} style={inputStyle}
@@ -1549,6 +1728,99 @@ function ColumnaEstratigrafica() {
                 value={f.formation} onChange={e => ff("formation", e.target.value)}
                 style={inputStyle} />
             </label>
+
+            <div style={secStyle}>· Orientación del estrato ·</div>
+
+            <label style={lblStyle}>Rumbo (azimut 0–360° o cuadrantal N30°E)
+              {(() => {
+                const az = parseRumbo(f.rumbo);
+                const err = f.rumbo.trim() !== "" && az == null;
+                return (
+                  <>
+                    <input type="text" placeholder="ej: 320  ·  N40°W  ·  040"
+                      value={f.rumbo} onChange={e => ff("rumbo", e.target.value)}
+                      style={{ ...inputStyle, borderColor: err ? T.danger : T.inputBd }} />
+                    {err && <span style={{ color: T.danger, fontSize: 9.5 }}>Formato no reconocido</span>}
+                    {!err && az != null && <span style={{ color: T.green, fontSize: 9.5 }}>→ Azimut {az.toFixed(1)}°</span>}
+                  </>
+                );
+              })()}
+            </label>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <label style={{ ...lblStyle, flex: 1 }}>Manteo δ (°)
+                <input type="number" step="any" min="0" max="90" placeholder="0–90"
+                  value={f.manteo} onChange={e => ff("manteo", e.target.value)}
+                  style={inputStyle} />
+              </label>
+              <div style={{ ...lblStyle, flex: 1.3 }}>
+                <span>Dir. buzamiento (respecto al rumbo)</span>
+                <div style={{ display: "flex", gap: 4, marginTop: 3 }}>
+                  {[["derecha", "Der. (+90°)"], ["izquierda", "Izq. (−90°)"]].map(([v, l]) => (
+                    <button key={v} type="button" onClick={() => ff("dirBuz", v)}
+                      style={{
+                        flex: 1, padding: "6px 4px", fontSize: 10, cursor: "pointer",
+                        background: f.dirBuz === v ? "#E3EEDD" : T.inputBg,
+                        border: `1px solid ${f.dirBuz === v ? T.green : T.inputBd}`,
+                        color: f.dirBuz === v ? T.green : T.text2,
+                        borderRadius: 3, fontWeight: f.dirBuz === v ? 700 : 500,
+                      }}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={secStyle}>· Geometría del recorrido ·</div>
+
+            <label style={lblStyle}>Azimut de la traza (°)
+              <input type="number" step="any" min="0" max="360"
+                placeholder={sectionAz != null ? `default ${Math.round(sectionAz)}° (de UTM)` : "0–360"}
+                value={f.azTraza} onChange={e => ff("azTraza", e.target.value)}
+                style={inputStyle} />
+              <span style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF }}>
+                Cómo caminaste en el cerro (base→techo). {sectionAz != null
+                  ? <>UTM sugiere <b>{Math.round(sectionAz)}°</b>.</>
+                  : <>Cargá UTM en pestaña Ubicación para autocompletar.</>}
+              </span>
+            </label>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <label style={{ ...lblStyle, flex: 1 }}>Largo en planta dh (m)
+                <input type="number" step="any" min="0" placeholder="m horizontales"
+                  value={f.dh} onChange={e => ff("dh", e.target.value)}
+                  style={inputStyle} />
+              </label>
+              <label style={{ ...lblStyle, flex: 1 }}>Desnivel Δh (m, con signo)
+                <input type="number" step="any" placeholder="+ subo  /  − bajo"
+                  value={f.deltaH} onChange={e => ff("deltaH", e.target.value)}
+                  style={inputStyle} />
+              </label>
+            </div>
+            <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
+              fontStyle: "italic", marginTop: -4 }}>
+              dh = distancia horizontal de la traza · Δh positivo si la traza asciende.
+            </div>
+
+            <div style={lblStyle}>
+              <span>Signo de la corrección topográfica</span>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {[["neg", "− Δh·cos δ", "Traza asciende en el MISMO sentido del buzamiento"],
+                  ["pos", "+ Δh·cos δ", "Traza asciende en sentido CONTRARIO al buzamiento"]].map(([v, l, d]) => (
+                  <button key={v} type="button" onClick={() => ff("signChoice", v)}
+                    style={{
+                      flex: 1, padding: "7px 8px", fontSize: 10, cursor: "pointer",
+                      background: f.signChoice === v ? "#E3EEDD" : T.inputBg,
+                      border: `1px solid ${f.signChoice === v ? T.green : T.inputBd}`,
+                      color: f.signChoice === v ? T.green : T.text2,
+                      borderRadius: 3, fontWeight: f.signChoice === v ? 700 : 500,
+                      textAlign: "left", lineHeight: 1.35,
+                    }}>
+                    <div style={{ fontFamily: MONO }}>{l}</div>
+                    <div style={{ fontSize: 9, color: T.text3, fontFamily: SERIF, fontStyle: "italic", marginTop: 1 }}>{d}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div style={secStyle}>· Sedimentología ·</div>
 
@@ -2343,7 +2615,7 @@ function Section({ title, items, simple }) {
 // ═══════════════════════════════════════════════════════════════
 // META FORM — Ubicación y metadatos del afloramiento / sección
 // ═══════════════════════════════════════════════════════════════
-function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle }) {
+function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle, btnBase, captureGps }) {
   const m = (k, v) => setMeta(p => ({ ...p, [k]: v }));
   const hint = { fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF };
   const E1 = parseFloat(meta.utmE), N1 = parseFloat(meta.utmN);
@@ -2411,6 +2683,12 @@ function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle }) {
             value={meta.utmN} onChange={e => m("utmN", e.target.value)} style={inputStyle} />
         </label>
       </div>
+      {captureGps && (
+        <button onClick={() => captureGps("base")} style={{
+          ...btnBase, background: T.green, color: T.hdrFg,
+          border: `1px solid ${T.green}`, fontWeight: 600,
+          marginTop: 2 }}>📍  Marcar GPS aquí (BASE)</button>
+      )}
 
       <div style={{ ...secStyle, color: T.rust }}>Techo / fin (cima de la columna)</div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -2423,6 +2701,12 @@ function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle }) {
             value={meta.utmN2} onChange={e => m("utmN2", e.target.value)} style={inputStyle} />
         </label>
       </div>
+      {captureGps && (
+        <button onClick={() => captureGps("techo")} style={{
+          ...btnBase, background: T.rust, color: T.hdrFg,
+          border: `1px solid ${T.rust}`, fontWeight: 600,
+          marginTop: 2 }}>📍  Marcar GPS aquí (TECHO)</button>
+      )}
 
       <label style={lblStyle}>Cota / Elevación de la base (m s.n.m.)
         <input type="number" step="any" placeholder="1240"
