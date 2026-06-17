@@ -434,8 +434,6 @@ const LITH = [
   ["conglomerate", "Conglomerado",            "p-congl",   "cobble", "Sedimentarias clásticas"],
   ["breccia",      "Brecha sedimentaria",     "p-brecc",   "cobble", "Sedimentarias clásticas"],
   ["sandstone",    "Arenisca masiva",         "p-sand",    "ms",     "Sedimentarias clásticas"],
-  ["xbedded_sand", "Arenisca est. cruzada",   "p-xsand",   "cs",     "Sedimentarias clásticas"],
-  ["ripple_sand",  "Arenisca con ripples",    "p-rsand",   "fs",     "Sedimentarias clásticas"],
   ["calc_sandstone","Arenisca calcárea",       "p-calcsand","ms",     "Sedimentarias clásticas"],
   ["greywacke",    "Grauvaca",                "p-greyw",   "cs",     "Sedimentarias clásticas"],
   ["siltstone",    "Limolita",                "p-silt",    "silt",   "Sedimentarias clásticas"],
@@ -549,6 +547,8 @@ const LITHO_ALIAS = {
   block_tuff: "brecha_pirocl", ignimbrite: "toba_ceniza",
   agglomerate: "aglomerado", volc_breccia: "brecha_pirocl",
   volcanic_breccia: "brecha_pirocl",
+  // retirados en v4.3: la estructura se registra en el campo structSymbols
+  xbedded_sand: "sandstone", ripple_sand: "sandstone",
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1300,21 +1300,7 @@ function SvgDefs({ totalH, spx }) {
         <circle cx="0" cy="6" r=".9" fill="#A87820"/>
         <circle cx="6" cy="6" r=".9" fill="#A87820"/>
       </pattern>
-      <pattern id="p-xsand" width="16" height="10" patternUnits="userSpaceOnUse">
-        <rect width="16" height="10" fill="#E8C050"/>
-        <circle cx="4" cy="3" r=".7" fill="#A07818"/><circle cx="12" cy="7" r=".7" fill="#A07818"/>
-        <circle cx="8" cy="1" r=".6" fill="#A07818"/><circle cx="14" cy="4" r=".6" fill="#A07818"/>
-        <circle cx="2" cy="8" r=".6" fill="#A07818"/><circle cx="10" cy="5" r=".6" fill="#A07818"/>
-        <line x1="0" y1="10" x2="16" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
-        <line x1="-8" y1="10" x2="8" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
-        <line x1="8" y1="10" x2="24" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
-      </pattern>
-      <pattern id="p-rsand" width="20" height="8" patternUnits="userSpaceOnUse">
-        <rect width="20" height="8" fill="#EDCA70"/>
-        <circle cx="3" cy="2" r=".6" fill="#A07818"/><circle cx="10" cy="6" r=".6" fill="#A07818"/>
-        <circle cx="16" cy="2" r=".5" fill="#A07818"/><circle cx="7" cy="7" r=".5" fill="#A07818"/>
-        <path d="M0,4 Q5,2 10,4 Q15,6 20,4" fill="none" stroke="#8E6210" strokeWidth="1"/>
-      </pattern>
+
       {/* FGDC 613 — Calcareous sandstone: stipple + brick elements */}
       <pattern id="p-calcsand" width="18" height="12" patternUnits="userSpaceOnUse">
         <rect width="18" height="12" fill="#E8D490"/>
