@@ -2890,7 +2890,7 @@ function ColumnaEstratigrafica() {
                       {maxCm < 1 && <div style={{ fontSize: 9.5, color: T.text3, marginBottom: 6 }}>
                         Ingresá el espesor de la unidad primero.</div>}
                       {modRow("techo", "Techo")}
-                      {modRow("muro",  "Muro")}
+                      {modRow("muro",  "Base")}
                     </div>
                   )}
                 </div>
@@ -3189,6 +3189,8 @@ function ColumnaEstratigrafica() {
                     const uw   = u.lithoId === "covered" ? CW : CW * gi[2];
                     const hasInter = u.lithoId2 && u.lithoId2 !== u.lithoId;
                     // Modificadores de zona (overlay al final, encima del patrón principal)
+                    // mw = ancho real de la unidad (igual que la litología dibujada)
+                    const mw = hasInter ? Math.max(uw, CW * findG(findL(u.lithoId2)[3])[2]) : uw;
                     const modOverlays = (() => {
                       const els = [];
                       const maxCm = u.thickness * 100;
@@ -3197,9 +3199,9 @@ function ColumnaEstratigrafica() {
                         if (mT) {
                           const hm = Math.min(u.modTecho.cm, maxCm) / 100 * SPX;
                           els.push(
-                            <rect key="mt" x={CX} y={topY} width={CW} height={hm}
+                            <rect key="mt" x={CX} y={topY} width={mw} height={hm}
                               fill={`url(#${mT[2]})`} fillOpacity="0.72"/>,
-                            <line key="mtl" x1={CX} y1={topY + hm} x2={CX + CW} y2={topY + hm}
+                            <line key="mtl" x1={CX} y1={topY + hm} x2={CX + mw} y2={topY + hm}
                               stroke="#5C3D1A" strokeWidth="0.8" strokeDasharray="3,2"/>
                           );
                         }
@@ -3209,9 +3211,9 @@ function ColumnaEstratigrafica() {
                         if (mM) {
                           const hm = Math.min(u.modMuro.cm, maxCm) / 100 * SPX;
                           els.push(
-                            <rect key="mm" x={CX} y={topY + hpx - hm} width={CW} height={hm}
+                            <rect key="mm" x={CX} y={topY + hpx - hm} width={mw} height={hm}
                               fill={`url(#${mM[2]})`} fillOpacity="0.72"/>,
-                            <line key="mml" x1={CX} y1={topY + hpx - hm} x2={CX + CW} y2={topY + hpx - hm}
+                            <line key="mml" x1={CX} y1={topY + hpx - hm} x2={CX + mw} y2={topY + hpx - hm}
                               stroke="#5C3D1A" strokeWidth="0.8" strokeDasharray="3,2"/>
                           );
                         }
@@ -3294,8 +3296,12 @@ function ColumnaEstratigrafica() {
                 {units.map((u, i) => {
                   if (i === 0) return null;
                   const y = yOf(cumH[i]);
+                  // Ancho del contacto = max entre la unidad inferior (i) y la superior (i-1)
+                  const uwU = u.lithoId === "covered" ? CW : CW * findG(u.grainSize)[2];
+                  const uwP = units[i-1].lithoId === "covered" ? CW : CW * findG(units[i-1].grainSize)[2];
+                  const cx2 = CX + Math.max(uwU, uwP);
                   return (
-                    <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, CX + CW, y)}
+                    <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, cx2, y)}
                       fill="none" stroke={cClr(u.contactBottom)}
                       strokeWidth={cWid(u.contactBottom)} strokeLinecap="round" />
                   );
