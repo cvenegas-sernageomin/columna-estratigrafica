@@ -1932,6 +1932,7 @@ function ColumnaEstratigrafica() {
   const [f,          setF]          = useState(DF);
   const [photoModal, setPhotoModal] = useState(null);
   const [showHelp,   setShowHelp]   = useState(false);
+  const [modOpen,    setModOpen]    = useState(false);
   const [toast,      setToast]      = useState("");
   const [panelTab,   setPanelTab]   = useState("units");
   const [meta,       setMeta]       = useState(DEFAULT_META);
@@ -2847,14 +2848,13 @@ function ColumnaEstratigrafica() {
             </label>
 
             {/* ── Modificadores de zona ── */}
-            {(() => {
+            {(f => {
               const hasMod = f.modTecho?.type || f.modMuro?.type;
-              const [modOpen, setModOpen] = React.useState(!!hasMod);
               const maxCm = Math.floor((parseFloat(f.thickness) || 0) * 100);
               const modRow = (pos, label) => {
                 const key = pos === "techo" ? "modTecho" : "modMuro";
                 const val = f[key] || {};
-                const setField = (field, v) => ff(key, { ...val, [field]: v } );
+                const setField = (field, v) => ff(key, { ...val, [field]: v });
                 const setType  = t => ff(key, t ? { type: t, cm: val.cm || Math.max(1, Math.round(maxCm * 0.15)), notes: val.notes || "" } : null);
                 return (
                   <div key={pos} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 5, flexWrap: "wrap" }}>
@@ -2895,7 +2895,7 @@ function ColumnaEstratigrafica() {
                   )}
                 </div>
               );
-            })()}
+            })(f)}
 
             <div style={{ display: "flex", gap: 6, marginTop: 14, marginBottom: 4 }}>
               {editId ? (
