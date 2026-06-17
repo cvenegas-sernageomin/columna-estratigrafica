@@ -608,10 +608,9 @@ const MUNSELL = [
 ];
 
 const CONTACTS = [
-  ["sharp",        "Neto concordante"   ],
-  ["gradational",  "Gradacional"        ],
-  ["erosive",      "Erosivo"            ],
-  ["unconformity", "Discordancia angular"],
+  ["sharp",       "Neto concordante"],
+  ["gradational", "Gradacional"     ],
+  ["erosive",     "Erosivo"         ],
 ];
 
 const ENVS = [
@@ -781,30 +780,22 @@ function bandsOf(units, cumH, field) {
 // ═══════════════════════════════════════════════════════════════
 // CONTACT GEOMETRY
 // ═══════════════════════════════════════════════════════════════
-const ERO_DY = [-3, 5, -4, 2, -6, 3, -5, 4, -3, 6];
+// Gradacional: línea recta punteada (dasharray en render)
+// Erosivo: línea irregular ondulada nítida
+const ERO_DY = [-4, 5, -5, 3, -6, 4, -5, 5, -4, 6];
 function cPath(type, x1, x2, y) {
-  if (type === "sharp") return `M${x1},${y}L${x2},${y}`;
-  if (type === "gradational") {
-    const n = 8, s = (x2 - x1) / n; let d = `M${x1},${y}`;
-    for (let i = 0; i < n; i++) {
-      const dy = i % 2 === 0 ? 3 : -3;
-      d += ` C${x1+i*s+s*.3},${y+dy} ${x1+i*s+s*.7},${y+dy} ${x1+(i+1)*s},${y}`;
-    }
-    return d;
-  }
+  if (type === "gradational") return `M${x1},${y}L${x2},${y}`;
   if (type === "erosive") {
     const n = 10, s = (x2 - x1) / n; let d = `M${x1},${y}`;
     for (let i = 0; i < n; i++)
-      d += ` L${x1+i*s+s*.5},${y+ERO_DY[i]} L${x1+(i+1)*s},${y}`;
+      d += ` C${x1+i*s+s*.3},${y+ERO_DY[i]} ${x1+i*s+s*.7},${y+ERO_DY[i]} ${x1+(i+1)*s},${y}`;
     return d;
   }
-  const n = 8, s = (x2 - x1) / n; let d = `M${x1},${y}`;
-  for (let i = 0; i < n; i++)
-    d += ` L${x1+i*s+s*.5},${y+(i%2===0?-7:7)} L${x1+(i+1)*s},${y}`;
-  return d;
+  return `M${x1},${y}L${x2},${y}`;
 }
-const cClr = t => t==="unconformity" ? T.danger : t==="erosive" ? T.rust : T.ink;
-const cWid = t => (t==="unconformity"||t==="erosive") ? 2 : 1.3;
+const cClr = t => t==="erosive" ? T.rust : T.ink;
+const cWid = t => t==="erosive" ? 2 : 1.3;
+const cDash = t => t==="gradational" ? "5,4" : "none";
 
 // ═══════════════════════════════════════════════════════════════
 // CSV UTILITIES
@@ -830,7 +821,7 @@ const CSV_TEMPLATE = `thickness,lithology,lithology2,lithoRatio,color,grainSize,
 4.10,toba_ceniza,,,"5YR 5/2 marrón rojizo pálido",fs,"Fiamme, soldamiento, juntas de enfriamiento",,erosive,Volcánico subaéreo,,ligeramente alterado,Ignimbrita soldada — flujo piroclástico
 1.40,tuffite,,,"5Y 6/2 gris oliva",fs,"Estratificación, mezcla piroclástica-epiclástica","Restos vegetales",gradational,Lacustre,SE 120°,fresco,Retrabajo en ambiente lacustre
 2.60,epiclastic,sandstone,0.7,"10YR 5/3 marrón",ms,"Est. cruzada, clastos volcánicos redondeados",,erosive,Fluvial – canal braided,NE 050°,fresco,Volcaniclástica retrabajada con interestratificación arenosa
-1.20,block_tuff,,,"5YR 4/3 marrón rojizo",cobble,"Bloques y bombas, soporte matriz",,unconformity,Volcánico subaéreo,,moderadamente alterado,Depósito proximal — discordancia
+1.20,block_tuff,,,"5YR 4/3 marrón rojizo",cobble,"Bloques y bombas, soporte matriz",,erosive,Volcánico subaéreo,,moderadamente alterado,Depósito proximal
 ${LITH_REFERENCE_BLOCK}
 `;
 
@@ -3289,7 +3280,8 @@ function ColumnaEstratigrafica() {
                   return (
                     <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, cx2, y)}
                       fill="none" stroke={cClr(u.contactBottom)}
-                      strokeWidth={cWid(u.contactBottom)} strokeLinecap="round" />
+                      strokeWidth={cWid(u.contactBottom)} strokeLinecap="round"
+                      strokeDasharray={cDash(u.contactBottom)} />
                   );
                 })}
 
@@ -3415,7 +3407,8 @@ function ColumnaEstratigrafica() {
                     return (
                       <g key={ct} transform={`translate(${lx},${ly})`}>
                         <path d={cPath(ct, 0, 55, 0)} fill="none"
-                          stroke={cClr(ct)} strokeWidth={cWid(ct)} />
+                          stroke={cClr(ct)} strokeWidth={cWid(ct)}
+                          strokeDasharray={cDash(ct)} />
                         <text x={62} y={4} style={{ fontSize: 10, fontFamily: SANS,
                           fill: T.text2 }}>{name}</text>
                       </g>
