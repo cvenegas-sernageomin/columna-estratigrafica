@@ -3212,22 +3212,40 @@ function ColumnaEstratigrafica() {
                     })();
 
                     if (!hasInter) {
-                      // Gradación normal/inversa → polígono trapezoidal
+                      // Gradación normal/inversa → escalonado (N bandas rectangulares)
+                      // Evita cortes diagonales en los patrones SVG; aspecto esquemático clásico.
                       const syms = u.structSymbols || [];
                       const hasGradN = syms.includes("graded_normal");
                       const hasGradR = syms.includes("graded_reverse");
                       if ((hasGradN || hasGradR) && u.lithoId !== "covered") {
-                        const uwFine = CW * 0.10; // extremo fino (arcilla)
-                        const uwBot  = hasGradN ? uw : uwFine; // base
-                        const uwTop  = hasGradN ? uwFine : uw; // techo
-                        const gradPath =
-                          `M${CX},${topY+hpx} L${CX+uwBot},${topY+hpx}` +
-                          ` L${CX+uwTop},${topY} L${CX},${topY} Z`;
+                        const N = 5;
+                        // Anchura mínima: 3 tamaños de grano más fino que el de la unidad
+                        const gIdx    = GRAIN.findIndex(g => g[0] === (u.grainSize || li[3]));
+                        const uwMin   = CW * GRAIN[Math.max(0, gIdx - 3)][2];
+                        // Litología más fina del mismo grupo (para la banda del extremo fino)
+                        const fGrainId = GRAIN[Math.max(0, gIdx - 3)][0];
+                        const liFiner  = LITH.find(l => l[4] === li[4] && l[3] === fGrainId && l[0] !== li[0]) ?? li;
+                        const bandH = hpx / N;
+                        // k=0 = techo (topY), k=N-1 = base (topY+hpx)
+                        const gradBands = Array.from({ length: N }, (_, k) => {
+                          const bw = hasGradN
+                            ? uwMin + (k / (N - 1)) * (uw - uwMin)  // techo=fino, base=grueso
+                            : uw   - (k / (N - 1)) * (uw - uwMin);  // techo=grueso, base=fino
+                          const by  = topY + k * bandH;
+                          const pat = (liFiner !== li && (hasGradN ? k === 0 : k === N - 1))
+                            ? liFiner[2] : li[2];
+                          return [
+                            <rect key={`g${k}`} x={CX} y={by} width={bw} height={bandH}
+                              fill={`url(#${pat})`} />,
+                            k > 0 && <line key={`gl${k}`} x1={CX} y1={by} x2={CX + bw} y2={by}
+                              stroke="rgba(0,0,0,0.18)" strokeWidth="0.45" />,
+                          ];
+                        }).flat().filter(Boolean);
                         return (
                           <g key={u.id}>
                             <rect x={CX} y={topY} width={CW} height={hpx}
                               fill={T.card} opacity="0.94" />
-                            <path d={gradPath} fill={`url(#${li[2]})`} />
+                            {gradBands}
                             {modOverlays}
                           </g>
                         );
