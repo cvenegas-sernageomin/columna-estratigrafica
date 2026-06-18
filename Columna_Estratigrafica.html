@@ -701,8 +701,8 @@ function glyphEls(id, k = "g") {
     case "current_ripple": return [pa("M-11,4 L-5,-5 L-1,4 L5,-5 L9,4"),ln(-11,7,9,7,1)];
     case "wave_ripple":    return [pa("M-11,3 Q-7,-6 -3,3 Q1,-6 5,3 Q9,-6 11,3")];
     case "climbing_ripple":return [pa("M-10,7 l4,-7 l4,7"),pa("M-2,3 l4,-7 l4,7"),pa("M6,-1 l4,-7")];
-    case "graded_normal":  return [pa("M-8,-8 L8,-8 L0,8 Z")];
-    case "graded_reverse": return [pa("M0,-8 L8,8 L-8,8 Z")];
+    case "graded_normal":  return [pa("M-8,8 L8,8 L0,-8 Z")];   // base gruesa abajo, vértice arriba
+    case "graded_reverse": return [pa("M0,8 L8,-8 L-8,-8 Z")]; // base gruesa arriba, vértice abajo
     case "load_cast":      return [ln(-10,-4,10,-4),pa("M-9,-4 Q-9,7 -4,7 Q1,7 1,-4"),pa("M1,-4 Q1,8 6,8 Q10,8 10,-4")];
     case "flute_cast":     return [pa("M-9,-3 Q-9,6 -4,6 Q0,6 -1,-3"),pa("M2,-3 Q2,7 7,6 Q10,5 9,-3")];
     case "scour":          return [pa("M-11,-4 Q-7,4 -3,-4 Q1,4 5,-4 Q9,4 11,-4")];
@@ -803,7 +803,7 @@ const cDash = t => t==="gradational" ? "5,4" : "none";
 const CSV_HEADERS = ["thickness","lithology","lithology2","lithoRatio","color","grainSize","structures",
   "structSymbols","fossilsDating","contactBottom","environment","paleocurrent","weathering","notes",
   "age","formation","rumbo","manteo","dirBuz","azTraza","dh","deltaH","signChoice",
-  "thicknessMode","interpLi1MinCm","interpLi1MaxCm","interpLi2MinCm","interpLi2MaxCm",
+  "thicknessMode","interpLi1MinCm","interpLi1MaxCm","interpLi2MinCm","interpLi2MaxCm","beddingTrend",
   "modTechoType","modTechoCm","modTechoNotes","modMuroType","modMuroCm","modMuroNotes"];
 
 // Bloque de referencia (líneas "#", ignoradas al importar) con todos los códigos
@@ -884,6 +884,7 @@ function generateCsv(units, meta, samples) {
       thicknessMode: u.thicknessMode,
       interpLi1MinCm: u.interpLi1MinCm, interpLi1MaxCm: u.interpLi1MaxCm,
       interpLi2MinCm: u.interpLi2MinCm, interpLi2MaxCm: u.interpLi2MaxCm,
+      beddingTrend: u.beddingTrend || "",
       modTechoType:  u.modTecho?.type  || "", modTechoCm:    u.modTecho?.cm    || "",
       modTechoNotes: u.modTecho?.notes || "", modMuroType:   u.modMuro?.type   || "",
       modMuroCm:     u.modMuro?.cm     || "", modMuroNotes:  u.modMuro?.notes  || "",
@@ -1888,6 +1889,7 @@ const DF = {
   // Datos duros de intercalación / alternancia (en cm)
   interpLi1MinCm: "", interpLi1MaxCm: "",  // rango de espesor de la litología principal
   interpLi2MinCm: "", interpLi2MaxCm: "",  // rango de espesor de la litología secundaria
+  beddingTrend: "",  // "" = uniforme, "thinning" = estrato decreciente (thins upward)
   photo: null, photoCaption: "",
   modTecho: null, modMuro: null,
 };
@@ -2089,6 +2091,7 @@ function ColumnaEstratigrafica() {
         thicknessMode: r.thicknessMode === "manual" ? "manual" : "badgley",
         interpLi1MinCm: r.interpLi1MinCm || "", interpLi1MaxCm: r.interpLi1MaxCm || "",
         interpLi2MinCm: r.interpLi2MinCm || "", interpLi2MaxCm: r.interpLi2MaxCm || "",
+        beddingTrend: r.beddingTrend === "thinning" ? "thinning" : "",
         photo: null, photoCaption: "",
         modTecho: parseMod(r.modTechoType, r.modTechoCm, r.modTechoNotes, t),
         modMuro:  parseMod(r.modMuroType,  r.modMuroCm,  r.modMuroNotes,  t),
@@ -2676,6 +2679,16 @@ function ColumnaEstratigrafica() {
                     fontFamily: SERIF, marginTop: -2 }}>
                     Se visualiza como bandas alternadas en la columna.
                   </div>
+                  <label style={{ ...lblStyle, flexDirection: "row",
+                    alignItems: "center", gap: 7, cursor: "pointer", marginTop: 4 }}>
+                    <input type="checkbox" checked={f.beddingTrend === "thinning"}
+                      onChange={e => ff("beddingTrend", e.target.checked ? "thinning" : "")}
+                      style={{ cursor: "pointer" }} />
+                    <span style={{ color: f.beddingTrend === "thinning" ? T.rust : T.text2,
+                      fontStyle: "italic", fontSize: 10.5 }}>
+                      Estrato decreciente hacia arriba
+                    </span>
+                  </label>
                   <div style={{ marginTop: 6, padding: "7px 9px", background: T.card,
                     border: `1px solid ${T.cardEdge}`, borderRadius: 3 }}>
                     <div style={{ fontSize: 9.5, color: T.text2, fontFamily: SANS,
@@ -3199,6 +3212,26 @@ function ColumnaEstratigrafica() {
                     })();
 
                     if (!hasInter) {
+                      // Gradación normal/inversa → polígono trapezoidal
+                      const syms = u.structSymbols || [];
+                      const hasGradN = syms.includes("graded_normal");
+                      const hasGradR = syms.includes("graded_reverse");
+                      if ((hasGradN || hasGradR) && u.lithoId !== "covered") {
+                        const uwFine = CW * 0.10; // extremo fino (arcilla)
+                        const uwBot  = hasGradN ? uw : uwFine; // base
+                        const uwTop  = hasGradN ? uwFine : uw; // techo
+                        const gradPath =
+                          `M${CX},${topY+hpx} L${CX+uwBot},${topY+hpx}` +
+                          ` L${CX+uwTop},${topY} L${CX},${topY} Z`;
+                        return (
+                          <g key={u.id}>
+                            <rect x={CX} y={topY} width={CW} height={hpx}
+                              fill={T.card} opacity="0.94" />
+                            <path d={gradPath} fill={`url(#${li[2]})`} />
+                            {modOverlays}
+                          </g>
+                        );
+                      }
                       if (edgeStyle === "freehand" && u.lithoId !== "covered") {
                         const xr = Math.min(CX + uw, CX + CW - EDGE_MARGIN);
                         return (
@@ -3227,22 +3260,26 @@ function ColumnaEstratigrafica() {
                     // Cada litología conserva el ancho de SU granulometría → perfil dentado.
                     const li2    = findL(u.lithoId2);
                     const ratio  = u.lithoRatio ?? 0.5;
-                    const uwA    = uw;                     // principal (granulometría de la unidad)
-                    const uwB    = CW * findG(li2[3])[2];  // secundaria (su grano por defecto)
+                    const uwA    = uw;
+                    const uwB    = CW * findG(li2[3])[2];
                     const nCyc   = Math.max(2, Math.min(28, Math.floor(hpx / 30)));
-                    const cycH   = hpx / nCyc;
-                    const aH     = cycH * ratio;
-                    // Bandas delgadas → más sinuosidad (fscale) y menor amplitud,
-                    // para que no se vea tosco.
-                    const bhA = aH, bhB = cycH - aH;
-                    const fsA = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhA)));
-                    const fsB = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhB)));
-                    const asA = Math.max(0.7, Math.min(1, bhA / 22));
-                    const asB = Math.max(0.7, Math.min(1, bhB / 22));
+                    const isThin = u.beddingTrend === "thinning";
+                    // Estrato decreciente: k=0 (techo, delgado) → k=nCyc-1 (base, grueso)
+                    // Peso de banda k: (k+1) — crece hacia la base.
+                    const totalW = isThin ? nCyc * (nCyc + 1) / 2 : 0;
                     const bands  = [];
                     const fh = edgeStyle === "freehand";
+                    let yPos = topY;
                     for (let k = 0; k < nCyc; k++) {
-                      const yStart = topY + k * cycH;
+                      const cycH_k = isThin ? hpx * (k + 1) / totalW : hpx / nCyc;
+                      const yStart = yPos;
+                      yPos += cycH_k;
+                      const aH     = cycH_k * ratio;
+                      const bhA = aH, bhB = cycH_k - aH;
+                      const fsA = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhA)));
+                      const fsB = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhB)));
+                      const asA = Math.max(0.7, Math.min(1, bhA / 22));
+                      const asB = Math.max(0.7, Math.min(1, bhB / 22));
                       bands.push(
                         fh
                           ? <path key={`${u.id}-a${k}`} fill={`url(#${li[2]})`}
@@ -3251,9 +3288,9 @@ function ColumnaEstratigrafica() {
                               width={uwA} height={aH} fill={`url(#${li[2]})`} />,
                         fh
                           ? <path key={`${u.id}-b${k}`} fill={`url(#${li2[2]})`}
-                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH - aH, i + 101, fsB, asB)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH_k - aH, i + 101, fsB, asB)} />
                           : <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
-                              width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
+                              width={uwB} height={cycH_k - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
                           x2={CX + Math.max(uwA, uwB)} y2={yStart + aH}
                           stroke="rgba(0,0,0,0.22)" strokeWidth="0.4" />
