@@ -236,6 +236,8 @@ const CONTACTS = [
   ["gradational", "Gradacional"     ],
   ["erosive",     "Erosivo"         ],
 ];
+// Retrocompat: mapea valores viejos de contactBottom a IDs actuales
+const CONTACT_ALIAS = { "unconformity": "erosive", "angular_unconformity": "erosive" };
 
 const ENVS = [
   "Fluvial – canal braided",
@@ -1731,7 +1733,7 @@ function ColumnaEstratigrafica() {
         structures:    r.structures || "",
         structSymbols: (r.structSymbols || "").split(";").map(s => s.trim()).filter(s => validStruct.has(s)),
         fossilsDating: r.fossilsDating || "",
-        contactBottom: validCont.has(r.contactBottom)   ? r.contactBottom  : "sharp",
+        contactBottom: validCont.has(CONTACT_ALIAS[r.contactBottom] || r.contactBottom) ? (CONTACT_ALIAS[r.contactBottom] || r.contactBottom) : "sharp",
         environment:   r.environment || "",
         paleocurrent:  r.paleocurrent || "",
         weathering:    validWeath.has(r.weathering)     ? r.weathering     : "fresco",
@@ -1828,6 +1830,7 @@ function ColumnaEstratigrafica() {
         lithoId2: normalizeLithoId(u.lithoId2),
         thickness: parseFloat(u.thickness) || 0,
         structSymbols: Array.isArray(u.structSymbols) ? u.structSymbols : [],
+        contactBottom: CONTACT_ALIAS[u.contactBottom] || u.contactBottom || DF.contactBottom,
       })).filter(u => u.thickness > 0);
       if (!parsed.length) { showToast("⚠ El archivo no tiene unidades válidas"); return; }
       setUnits(parsed); setEditId(null); setF(DF);
