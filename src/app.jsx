@@ -1591,6 +1591,18 @@ function ColumnaEstratigrafica() {
   const jsonInputRef  = useRef(null);
 
   const ff = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const [openStructGroups, setOpenStructGroups] = React.useState(() => {
+    const active = new Set((f.structSymbols || []).map(id => {
+      const s = STRUCTS.find(s => s[0] === id);
+      return s ? s[2] : null;
+    }).filter(Boolean));
+    return active.size > 0 ? active : new Set(["Estratificación"]);
+  });
+  const toggleStructGroup = g => setOpenStructGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
   const toggleStruct = id => setF(p => {
     const cur = p.structSymbols || [];
     return { ...p, structSymbols: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
@@ -1674,7 +1686,15 @@ function ColumnaEstratigrafica() {
     setUnits(p => p.map(u => u.id === editId ? { ...f, id: editId, thickness: t } : u));
     setEditId(null); setF(DF);
   };
-  const doEdit   = u => { setEditId(u.id); setF({ ...u, thickness: String(u.thickness) }); };
+  const doEdit   = u => {
+    setEditId(u.id); setF({ ...u, thickness: String(u.thickness) });
+    const syms = (u.structSymbols || []);
+    const activeGroups = new Set(syms.map(id => {
+      const s = STRUCTS.find(s => s[0] === id);
+      return s ? s[2] : null;
+    }).filter(Boolean));
+    setOpenStructGroups(activeGroups.size > 0 ? activeGroups : new Set(["Estratificación"]));
+  };
   const doCancel = () => { setEditId(null); setF(DF); };
   const doDel    = id => {
     setUnits(p => p.filter(u => u.id !== id));
@@ -2402,30 +2422,52 @@ function ColumnaEstratigrafica() {
                 )}
               </span>
               <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
-                maxHeight: 170, overflowY: "auto", background: T.inputBg }}>
-                {STRUCT_GROUPS.map(g => (
-                  <div key={g}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: T.text3,
-                      padding: "3px 8px", background: T.panelAlt,
-                      borderBottom: `1px solid ${T.border}`, letterSpacing: "0.04em",
-                      textTransform: "uppercase" }}>{g}</div>
-                    {STRUCTS.filter(s => s[2] === g).map(s => {
-                      const on = (f.structSymbols || []).includes(s[0]);
-                      return (
-                        <label key={s[0]} style={{ display: "flex", alignItems: "center",
-                          gap: 7, padding: "4px 8px", cursor: "pointer",
-                          background: on ? "#E8F2E3" : "transparent",
-                          borderBottom: `1px solid ${T.cardEdge}` }}>
-                          <input type="checkbox" checked={on}
-                            onChange={() => toggleStruct(s[0])}
-                            style={{ cursor: "pointer", accentColor: T.green }} />
-                          <span style={{ fontSize: 11, color: on ? T.green : T.text,
-                            fontWeight: on ? 600 : 400 }}>{s[1]}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
+                background: T.inputBg }}>
+                {STRUCT_GROUPS.map(g => {
+                  const groupItems = STRUCTS.filter(s => s[2] === g);
+                  const activeInGroup = groupItems.filter(s => (f.structSymbols || []).includes(s[0])).length;
+                  const isOpen = openStructGroups.has(g);
+                  return (
+                    <div key={g}>
+                      <button
+                        type="button"
+                        onPointerDown={e => { e.preventDefault(); toggleStructGroup(g); }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "5px 8px", background: T.panelAlt,
+                          border: "none", borderBottom: `1px solid ${T.border}`,
+                          cursor: "pointer", textAlign: "left", minHeight: 34 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: T.text3,
+                          letterSpacing: "0.04em", textTransform: "uppercase" }}>{g}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {activeInGroup > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.green,
+                              background: "#D6EDD5", borderRadius: 8, padding: "1px 5px" }}>
+                              {activeInGroup}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, color: T.text3 }}>{isOpen ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {isOpen && groupItems.map(s => {
+                        const on = (f.structSymbols || []).includes(s[0]);
+                        return (
+                          <label key={s[0]} style={{ display: "flex", alignItems: "center",
+                            gap: 7, padding: "5px 8px", cursor: "pointer",
+                            background: on ? "#E8F2E3" : "transparent",
+                            borderBottom: `1px solid ${T.cardEdge}`,
+                            minHeight: 34 }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => toggleStruct(s[0])}
+                              style={{ cursor: "pointer", accentColor: T.green, width: 16, height: 16 }} />
+                            <StructIcon id={s[0]} size={18} />
+                            <span style={{ fontSize: 11, color: on ? T.green : T.text,
+                              fontWeight: on ? 600 : 400, flex: 1 }}>{s[1]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
