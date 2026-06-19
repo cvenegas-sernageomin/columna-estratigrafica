@@ -1579,6 +1579,12 @@ function ColumnaEstratigrafica() {
   const [edgeStyle,  setEdgeStyle]  = useState("freehand");
   const [vw,         setVw]         = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   const [mobileView, setMobileView] = useState("edit");
+  const [openStructGroups, setOpenStructGroups] = useState(() => new Set(["Estratificación"]));
+  const toggleStructGroup = g => setOpenStructGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
   useEffect(() => {
     const onR = () => setVw(window.innerWidth);
     window.addEventListener("resize", onR);
@@ -1591,18 +1597,6 @@ function ColumnaEstratigrafica() {
   const jsonInputRef  = useRef(null);
 
   const ff = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const [openStructGroups, setOpenStructGroups] = React.useState(() => {
-    const active = new Set((f.structSymbols || []).map(id => {
-      const s = STRUCTS.find(s => s[0] === id);
-      return s ? s[2] : null;
-    }).filter(Boolean));
-    return active.size > 0 ? active : new Set(["Estratificación"]);
-  });
-  const toggleStructGroup = g => setOpenStructGroups(prev => {
-    const next = new Set(prev);
-    next.has(g) ? next.delete(g) : next.add(g);
-    return next;
-  });
   const toggleStruct = id => setF(p => {
     const cur = p.structSymbols || [];
     return { ...p, structSymbols: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
@@ -2431,7 +2425,7 @@ function ColumnaEstratigrafica() {
                     <div key={g}>
                       <button
                         type="button"
-                        onPointerDown={e => { e.preventDefault(); toggleStructGroup(g); }}
+                        onClick={() => toggleStructGroup(g)}
                         style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                           width: "100%", padding: "5px 8px", background: T.panelAlt,
                           border: "none", borderBottom: `1px solid ${T.border}`,
