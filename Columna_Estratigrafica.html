@@ -2734,24 +2734,38 @@ function ColumnaEstratigrafica() {
             <div style={secStyle}>· Sedimentología ·</div>
 
             <div style={lblStyle}>
-              <span>Estructuras — símbolos</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
-                gap: 4, marginTop: 3 }}>
-                {STRUCTS.map(s => {
-                  const on = (f.structSymbols || []).includes(s[0]);
-                  return (
-                    <button key={s[0]} type="button" title={s[1]}
-                      onClick={() => toggleStruct(s[0])}
-                      style={{ display: "flex", alignItems: "center",
-                        justifyContent: "center", padding: 2, cursor: "pointer",
-                        borderRadius: 3, aspectRatio: "1",
-                        border: `1px solid ${on ? T.green : T.border}`,
-                        background: on ? "#E3EEDD" : T.inputBg,
-                        boxShadow: on ? `inset 0 0 0 1px ${T.green}` : "none" }}>
-                      <StructIcon id={s[0]} size={20} />
-                    </button>
-                  );
-                })}
+              <span>Estructuras — símbolos
+                {(f.structSymbols || []).length > 0 && (
+                  <span style={{ marginLeft: 6, color: T.green, fontSize: 10, fontWeight: 700 }}>
+                    {(f.structSymbols || []).length} sel.
+                  </span>
+                )}
+              </span>
+              <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
+                maxHeight: 170, overflowY: "auto", background: T.inputBg }}>
+                {STRUCT_GROUPS.map(g => (
+                  <div key={g}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: T.text3,
+                      padding: "3px 8px", background: T.panelAlt,
+                      borderBottom: `1px solid ${T.border}`, letterSpacing: "0.04em",
+                      textTransform: "uppercase" }}>{g}</div>
+                    {STRUCTS.filter(s => s[2] === g).map(s => {
+                      const on = (f.structSymbols || []).includes(s[0]);
+                      return (
+                        <label key={s[0]} style={{ display: "flex", alignItems: "center",
+                          gap: 7, padding: "4px 8px", cursor: "pointer",
+                          background: on ? "#E8F2E3" : "transparent",
+                          borderBottom: `1px solid ${T.cardEdge}` }}>
+                          <input type="checkbox" checked={on}
+                            onChange={() => toggleStruct(s[0])}
+                            style={{ cursor: "pointer", accentColor: T.green }} />
+                          <span style={{ fontSize: 11, color: on ? T.green : T.text,
+                            fontWeight: on ? 600 : 400 }}>{s[1]}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -3176,10 +3190,9 @@ function ColumnaEstratigrafica() {
                     const hpx  = u.thickness * SPX;
                     const li   = findL(u.lithoId);
                     const gi   = findG(u.grainSize);
-                    const uw   = u.lithoId === "covered" ? CW : CW * gi[2];
+                    const isCov = u.lithoId === "covered";
+                    const uw   = isCov ? CW * GRAIN[0][2] : CW * gi[2];
                     const hasInter = u.lithoId2 && u.lithoId2 !== u.lithoId;
-                    // Modificadores de zona (overlay al final, encima del patrón principal)
-                    // mw = ancho real de la unidad (igual que la litología dibujada)
                     const mw = hasInter ? Math.max(uw, CW * findG(findL(u.lithoId2)[3])[2]) : uw;
                     const modOverlays = (() => {
                       const els = [];
@@ -3212,45 +3225,24 @@ function ColumnaEstratigrafica() {
                     })();
 
                     if (!hasInter) {
-                      // Gradación normal/inversa → escalonado (N bandas rectangulares)
-                      // Evita cortes diagonales en los patrones SVG; aspecto esquemático clásico.
-                      const syms = u.structSymbols || [];
-                      const hasGradN = syms.includes("graded_normal");
-                      const hasGradR = syms.includes("graded_reverse");
-                      if ((hasGradN || hasGradR) && u.lithoId !== "covered") {
-                        const N = 5;
-                        // Anchura mínima: 3 tamaños de grano más fino que el de la unidad
-                        const gIdx    = GRAIN.findIndex(g => g[0] === (u.grainSize || li[3]));
-                        const uwMin   = CW * GRAIN[Math.max(0, gIdx - 3)][2];
-                        // Litología más fina del mismo grupo (para la banda del extremo fino)
-                        const fGrainId = GRAIN[Math.max(0, gIdx - 3)][0];
-                        const liFiner  = LITH.find(l => l[4] === li[4] && l[3] === fGrainId && l[0] !== li[0]) ?? li;
-                        const bandH = hpx / N;
-                        // k=0 = techo (topY), k=N-1 = base (topY+hpx)
-                        const gradBands = Array.from({ length: N }, (_, k) => {
-                          const bw = hasGradN
-                            ? uwMin + (k / (N - 1)) * (uw - uwMin)  // techo=fino, base=grueso
-                            : uw   - (k / (N - 1)) * (uw - uwMin);  // techo=grueso, base=fino
-                          const by  = topY + k * bandH;
-                          const pat = (liFiner !== li && (hasGradN ? k === 0 : k === N - 1))
-                            ? liFiner[2] : li[2];
-                          return [
-                            <rect key={`g${k}`} x={CX} y={by} width={bw} height={bandH}
-                              fill={`url(#${pat})`} />,
-                            k > 0 && <line key={`gl${k}`} x1={CX} y1={by} x2={CX + bw} y2={by}
-                              stroke="rgba(0,0,0,0.18)" strokeWidth="0.45" />,
-                          ];
-                        }).flat().filter(Boolean);
+                      // Cubierto / sin afloramiento → franja angosta, fondo blanco, cruz
+                      if (isCov) {
                         return (
                           <g key={u.id}>
                             <rect x={CX} y={topY} width={CW} height={hpx}
                               fill={T.card} opacity="0.94" />
-                            {gradBands}
-                            {modOverlays}
+                            <rect x={CX} y={topY} width={uw} height={hpx}
+                              fill="white" stroke={T.border} strokeWidth="0.6" />
+                            {hpx > 10 && <>
+                              <line x1={CX + 2} y1={topY + 2} x2={CX + uw - 2} y2={topY + hpx - 2}
+                                stroke={T.text3} strokeWidth="0.9" />
+                              <line x1={CX + uw - 2} y1={topY + 2} x2={CX + 2} y2={topY + hpx - 2}
+                                stroke={T.text3} strokeWidth="0.9" />
+                            </>}
                           </g>
                         );
                       }
-                      if (edgeStyle === "freehand" && u.lithoId !== "covered") {
+                      if (edgeStyle === "freehand") {
                         const xr = Math.min(CX + uw, CX + CW - EDGE_MARGIN);
                         return (
                           <g key={u.id}>
@@ -3329,8 +3321,8 @@ function ColumnaEstratigrafica() {
                   if (i === 0) return null;
                   const y = yOf(cumH[i]);
                   // Ancho del contacto = max entre la unidad inferior (i) y la superior (i-1)
-                  const uwU = u.lithoId === "covered" ? CW : CW * findG(u.grainSize)[2];
-                  const uwP = units[i-1].lithoId === "covered" ? CW : CW * findG(units[i-1].grainSize)[2];
+                  const uwU = u.lithoId === "covered" ? CW * GRAIN[0][2] : CW * findG(u.grainSize)[2];
+                  const uwP = units[i-1].lithoId === "covered" ? CW * GRAIN[0][2] : CW * findG(units[i-1].grainSize)[2];
                   const cx2 = CX + Math.max(uwU, uwP);
                   return (
                     <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, cx2, y)}
@@ -3368,16 +3360,35 @@ function ColumnaEstratigrafica() {
                     const hpx  = u.thickness * SPX;
                     const midY = topY + hpx / 2;
                     const gs   = 20;
+                    const cx   = STX + STW / 2;
+                    // Gradación normal/inversa → triángulo de altura completa del estrato
+                    const hasGN = syms.includes("graded_normal");
+                    const hasGR = syms.includes("graded_reverse");
+                    const others = syms.filter(s => s !== "graded_normal" && s !== "graded_reverse");
                     const maxN = Math.max(1, Math.floor(hpx / gs));
-                    const shown = syms.slice(0, maxN);
-                    const cx = STX + STW / 2;
+                    const shown = others.slice(0, maxN);
                     const y0 = midY - (shown.length - 1) * gs / 2;
-                    return shown.map((sid, j) => (
-                      <g key={`${u.id}sym${j}`}
-                        transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 24})`}>
-                        {glyphEls(sid, `${u.id}_${j}`)}
+                    const tx1 = STX + 3, tx2 = STX + STW - 3, tcx = STX + STW / 2;
+                    return (
+                      <g key={`${u.id}str`}>
+                        {hasGN && (
+                          // Normal: base ancha abajo, vértice arriba
+                          <path d={`M${tx1},${topY+hpx} L${tx2},${topY+hpx} L${tcx},${topY} Z`}
+                            fill="rgba(110,70,20,0.28)" stroke={T.ink} strokeWidth="0.7" />
+                        )}
+                        {hasGR && (
+                          // Inversa: base ancha arriba, vértice abajo
+                          <path d={`M${tcx},${topY+hpx} L${tx1},${topY} L${tx2},${topY} Z`}
+                            fill="rgba(110,70,20,0.28)" stroke={T.ink} strokeWidth="0.7" />
+                        )}
+                        {shown.map((sid, j) => (
+                          <g key={`${u.id}sym${j}`}
+                            transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 24})`}>
+                            {glyphEls(sid, `${u.id}_${j}`)}
+                          </g>
+                        ))}
                       </g>
-                    ));
+                    );
                   })}
                 </g>
 
