@@ -421,7 +421,11 @@ const SX  = 146, SAW = 46;   // pista de muestras
 const CX  = 200, CW  = 92;   // columna litológica
 const STX = CX + CW + 8;     // pista de estructuras (der. de la columna)
 const STW = 36;              // ancho pista de estructuras
-const LX  = STX + STW + 8;   // inicio de etiquetas de texto
+const BTX = STX + STW + 4;   // pista de bioturbación (BI 0–6)
+const BTW = 18;
+const ITX = BTX + BTW + 4;   // pista de icnofósiles / trazas
+const ITW = 30;
+const LX  = ITX + ITW + 6;   // inicio de etiquetas de texto
 const SW  = 840;
 const PHX = SW - 100;
 const PHW = 80, PHH = 60;
@@ -742,6 +746,71 @@ const STRUCTS = [
 const STRUCT_GROUPS = [...new Set(STRUCTS.map(s => s[2]))];
 const findS = id => STRUCTS.find(s => s[0] === id);
 
+// ═══════════════════════════════════════════════════════════════
+// ICHNOFOSSILS — trazas fósiles e icnofacies  [id, label, group]
+// Tucker (2003) §5.6; icnofacies de Seilacher
+// ═══════════════════════════════════════════════════════════════
+const ICHNO_TYPES = [
+  // ── Ichnofacies Skolithos (alta energía, somero-intermareale) ──
+  ["skolithos",      "Skolithos",           "Skolithos"],
+  ["ophiomorpha",    "Ophiomorpha",         "Skolithos"],
+  ["arenicolites",   "Arenicolites",        "Skolithos"],
+  ["diplocraterion", "Diplocraterion",      "Skolithos"],
+  // ── Ichnofacies Cruziana (moderada, shoreface–plataforma) ──
+  ["cruziana",       "Cruziana",            "Cruziana"],
+  ["rusophycus",     "Rusophycus",          "Cruziana"],
+  ["rhizocorallium", "Rhizocorallium",      "Cruziana"],
+  ["asteriacites",   "Asteriacites",        "Cruziana"],
+  // ── Ichnofacies Zoophycos (baja energía, plataforma–talud) ──
+  ["zoophycos",      "Zoophycos",           "Zoophycos"],
+  ["chondrites",     "Chondrites",          "Zoophycos"],
+  ["planolites",     "Planolites",          "Zoophycos"],
+  // ── Ichnofacies Nereites (cuenca profunda) ──
+  ["nereites",       "Nereites",            "Nereites"],
+  ["paleodictyon",   "Paleodictyon",        "Nereites"],
+  ["cosmorhaphe",    "Cosmorhaphe",         "Nereites"],
+  // ── Otros icnofósiles comunes ──
+  ["thalassinoides", "Thalassinoides",      "Otros"],
+  ["terebellina",    "Terebellina",         "Otros"],
+];
+
+const ICHNO_GROUPS = [...new Set(ICHNO_TYPES.map(t => t[2]))];
+const findI = id => ICHNO_TYPES.find(t => t[0] === id);
+
+function ichnoGlyphEls(id, k = "ig") {
+  const S = "#2A1F12", W = 1.3;
+  const ln = (x1,y1,x2,y2,w=W) => <line key={`${k}l${x1}${y1}${x2}${y2}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={S} strokeWidth={w} strokeLinecap="round"/>;
+  const pa = (d,w=W) => <path key={`${k}p${d}`} d={d} stroke={S} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round"/>;
+  const ci = (cx,cy,r) => <circle key={`${k}c${cx}${cy}`} cx={cx} cy={cy} r={r} fill={S}/>;
+  switch (id) {
+    case "skolithos":      return [ln(0,-10,0,10,2)];
+    case "ophiomorpha":    return [pa("M0,-10 L0,4 Q0,10 -5,10",2),pa("M-8,2 L0,2",0.9),pa("M-8,6 L-2,6",0.9)];
+    case "arenicolites":   return [pa("M-7,-8 L-7,5 Q-7,10 0,10 Q7,10 7,5 L7,-8")];
+    case "diplocraterion": return [pa("M-7,-8 L-7,5 Q-7,10 0,10 Q7,10 7,5 L7,-8"),ln(-6,0,6,0,0.7),ln(-5,-3,5,-3,0.7),ln(-4,-6,4,-6,0.7)];
+    case "cruziana":       return [pa("M-10,0 C-8,-6 8,-6 10,0 C8,6 -8,6 -10,0 Z"),pa("M-7,-2 L-3,0 L-7,2",0.7),pa("M0,-2 L4,0 L0,2",0.7),pa("M7,-2 L10,0 L7,2",0.7)];
+    case "rusophycus":     return [pa("M-8,-4 Q0,-8 8,-4 L8,4 Q0,8 -8,4 Z"),pa("M-4,-1 L4,-1",0.7),pa("M-4,2 L4,2",0.7)];
+    case "rhizocorallium": return [pa("M-11,-3 L11,-3"),pa("M-11,4 L11,4"),pa("M-11,-3 Q-11,0.5 -11,4"),pa("M11,-3 Q11,0.5 11,4"),ln(-7,-1,7,-1,0.6),ln(-6,1,6,1,0.6)];
+    case "asteriacites":   return [pa("M0,-10 L0,0"),pa("M0,0 L9.5,3"),pa("M0,0 L5.9,8"),pa("M0,0 L-5.9,8"),pa("M0,0 L-9.5,3")];
+    case "zoophycos":      return [pa("M0,0 C3,-6 9,-4 9,0 C9,6 3,9 0,5 C-4,1 -3,-9 3,-9 C9,-9 11,-2 8,4")];
+    case "chondrites":     return [pa("M0,9 L0,2"),pa("M0,2 L-5,-3"),pa("M0,2 L5,-3"),pa("M-5,-3 L-8,-8",0.9),pa("M-5,-3 L-2,-8",0.9),pa("M5,-3 L2,-8",0.9),pa("M5,-3 L8,-8",0.9)];
+    case "planolites":     return [pa("M-10,0 Q-5,6 0,0 Q5,-6 10,0")];
+    case "nereites":       return [pa("M-10,4 Q-7,-3 -4,4 Q-1,-3 2,4 Q5,-3 8,4"),ci(-7,0.5,1.4),ci(-1,0.5,1.4),ci(5,0.5,1.4)];
+    case "paleodictyon":   return [pa("M-9,-5 L0,-10 L9,-5 L9,5 L0,10 L-9,5 Z"),pa("M-9,-5 L9,5"),pa("M9,-5 L-9,5"),pa("M0,-10 L0,10")];
+    case "cosmorhaphe":    return [pa("M-10,0 C-8,-7 -2,-7 0,0 C2,7 8,7 10,0 C8,-7 2,-7 0,0 C-2,7 -8,7 -10,0")];
+    case "thalassinoides": return [pa("M0,-9 L0,0"),pa("M0,0 L-7,7"),pa("M0,0 L7,7"),ci(0,-9,1.5),ci(-7,7,1.5),ci(7,7,1.5)];
+    case "terebellina":    return [pa("M0,-10 C6,-10 10,-5 10,0 C10,6 5,10 0,10 C-5,10 -10,6 -10,0 C-10,-5 -6,-10 0,-10"),ln(-10,0,10,0,0.6)];
+    default:               return [ci(0,0,2)];
+  }
+}
+
+function IchnoIcon({ id, size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="-14 -14 28 28" style={{ display: "block" }}>
+      {ichnoGlyphEls(id, id)}
+    </svg>
+  );
+}
+
 // Glifo dibujado en una caja [-12,12]. Devuelve un array de elementos SVG.
 function glyphEls(id, k = "g") {
   const S = "#2A1F12", W = 1.3;
@@ -872,7 +941,8 @@ const CSV_HEADERS = ["thickness","lithology","lithology2","lithoRatio","color","
   "structSymbols","fossilsDating","contactBottom","environment","paleocurrent","weathering","notes",
   "age","formation","rumbo","manteo","dirBuz","azTraza","dh","deltaH","signChoice",
   "thicknessMode","interpLi1MinCm","interpLi1MaxCm","interpLi2MinCm","interpLi2MaxCm","beddingTrend",
-  "modTechoType","modTechoCm","modTechoNotes","modMuroType","modMuroCm","modMuroNotes"];
+  "modTechoType","modTechoCm","modTechoNotes","modMuroType","modMuroCm","modMuroNotes",
+  "bioturbIndex","traceIchnos"];
 
 // Bloque de referencia (líneas "#", ignoradas al importar) con todos los códigos
 // de litología aceptados en "lithology" / "lithology2", agrupados como en el picker.
@@ -956,6 +1026,8 @@ function generateCsv(units, meta, samples) {
       modTechoType:  u.modTecho?.type  || "", modTechoCm:    u.modTecho?.cm    || "",
       modTechoNotes: u.modTecho?.notes || "", modMuroType:   u.modMuro?.type   || "",
       modMuroCm:     u.modMuro?.cm     || "", modMuroNotes:  u.modMuro?.notes  || "",
+      bioturbIndex:  u.bioturbIndex != null ? u.bioturbIndex : "",
+      traceIchnos:   (u.traceIchnos || []).join(";"),
     };
     return esc(map[h]);
   }).join(","));
@@ -1327,6 +1399,12 @@ function SvgDefs({ totalH, spx }) {
       </clipPath>
       <clipPath id="colclip2">
         <rect x={STX} y={MT} width={STW} height={totalH * SPX} />
+      </clipPath>
+      <clipPath id="biclip">
+        <rect x={BTX} y={MT} width={BTW} height={totalH * SPX} />
+      </clipPath>
+      <clipPath id="ichnoclip">
+        <rect x={ITX} y={MT} width={ITW} height={totalH * SPX} />
       </clipPath>
       <clipPath id="sampclip">
         <rect x={SX} y={MT} width={SAW} height={totalH * SPX} />
@@ -1960,6 +2038,7 @@ const DF = {
   beddingTrend: "",  // "" = uniforme, "thinning" = estrato decreciente (thins upward)
   photo: null, photoCaption: "",
   modTecho: null, modMuro: null,
+  bioturbIndex: null, traceIchnos: [],
 };
 const DEFAULT_META = {
   project: "", locality: "", author: "", date: "",
@@ -1993,6 +2072,16 @@ function ColumnaEstratigrafica() {
     const next = new Set(prev);
     next.has(g) ? next.delete(g) : next.add(g);
     return next;
+  });
+  const [openIchnoGroups, setOpenIchnoGroups] = useState(() => new Set(["Skolithos"]));
+  const toggleIchnoGroup = g => setOpenIchnoGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
+  const toggleIchno = id => setF(p => {
+    const cur = p.traceIchnos || [];
+    return { ...p, traceIchnos: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
   });
   useEffect(() => {
     const onR = () => setVw(window.innerWidth);
@@ -2033,6 +2122,9 @@ function ColumnaEstratigrafica() {
   const sampRows = Math.ceil(usedSampleTypes.length / 2);
   const usedMods = MOD_TYPES.filter(m => units.some(u => u.modTecho?.type === m[0] || u.modMuro?.type === m[0]));
   const modRows = Math.ceil(usedMods.length / 2);
+  const usedIchno = ICHNO_TYPES.filter(t => units.some(u => (u.traceIchnos || []).includes(t[0])));
+  const ichnoRows = Math.ceil(usedIchno.length / 2);
+  const hasBI = units.some(u => u.bioturbIndex != null);
   // posiciones verticales (dentro del grupo de leyenda) — cursor secuencial
   let legCur = 82 + Math.max(1, legRows) * 17;        // fin del bloque litologías
   const structsTopY = legCur + 14;
@@ -2041,6 +2133,10 @@ function ColumnaEstratigrafica() {
   if (usedSampleTypes.length) legCur = sampTopY + 18 + sampRows * 17;
   const modsTopY = legCur + 14;
   if (usedMods.length) legCur = modsTopY + 18 + modRows * 17;
+  const ichnoTopY = legCur + 14;
+  if (usedIchno.length) legCur = ichnoTopY + 18 + ichnoRows * 17;
+  const biTopY = legCur + 14;
+  if (hasBI) legCur = biTopY + 34;
   const legH = 24 + legCur + 16;
   const svgH     = MT + totalH * SPX + legH;
   const svgW     = SW;
@@ -2097,6 +2193,12 @@ function ColumnaEstratigrafica() {
       return s ? s[2] : null;
     }).filter(Boolean));
     setOpenStructGroups(activeGroups.size > 0 ? activeGroups : new Set(["Estratificación"]));
+    const ichnos = (u.traceIchnos || []);
+    const activeIchnoGroups = new Set(ichnos.map(id => {
+      const t = ICHNO_TYPES.find(t => t[0] === id);
+      return t ? t[2] : null;
+    }).filter(Boolean));
+    setOpenIchnoGroups(activeIchnoGroups.size > 0 ? activeIchnoGroups : new Set(["Skolithos"]));
   };
   const doCancel = () => { setEditId(null); setF(DF); };
   const doDel    = id => {
@@ -2177,6 +2279,11 @@ function ColumnaEstratigrafica() {
         photo: null, photoCaption: "",
         modTecho: parseMod(r.modTechoType, r.modTechoCm, r.modTechoNotes, t),
         modMuro:  parseMod(r.modMuroType,  r.modMuroCm,  r.modMuroNotes,  t),
+        bioturbIndex: (r.bioturbIndex !== "" && r.bioturbIndex != null)
+          ? Math.min(6, Math.max(0, parseInt(r.bioturbIndex, 10) || 0)) : null,
+        traceIchnos: r.traceIchnos
+          ? r.traceIchnos.split(";").map(s => s.trim()).filter(s => ICHNO_TYPES.some(x => x[0] === s))
+          : [],
       };
     }).filter(Boolean);
     if (parsed.length === 0) { showToast("⚠ No se encontraron filas válidas"); return; }
@@ -2253,6 +2360,8 @@ function ColumnaEstratigrafica() {
         lithoId2: normalizeLithoId(u.lithoId2),
         thickness: parseFloat(u.thickness) || 0,
         structSymbols: Array.isArray(u.structSymbols) ? u.structSymbols : [],
+        traceIchnos:   Array.isArray(u.traceIchnos) ? u.traceIchnos.filter(s => ICHNO_TYPES.some(t => t[0] === s)) : [],
+        bioturbIndex:  u.bioturbIndex != null ? Math.min(6, Math.max(0, parseInt(u.bioturbIndex, 10) || 0)) : null,
         contactBottom: CONTACT_ALIAS[u.contactBottom] || u.contactBottom || DF.contactBottom,
         environment:   LEGACY_ENV_ALIAS[u.environment] || u.environment || "",
       })).filter(u => u.thickness > 0);
@@ -2887,6 +2996,95 @@ function ColumnaEstratigrafica() {
                 style={inputStyle} />
             </label>
 
+            <div style={lblStyle}>
+              <span>Índice de bioturbación (BI)
+                {f.bioturbIndex != null && (
+                  <span style={{ marginLeft: 6, color: T.indigo, fontSize: 10, fontWeight: 700 }}>
+                    BI = {f.bioturbIndex}
+                  </span>
+                )}
+              </span>
+              <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+                {[null,0,1,2,3,4,5,6].map(v => {
+                  const lbl = v == null ? "–" : String(v);
+                  const on  = f.bioturbIndex === v;
+                  return (
+                    <button key={lbl} type="button"
+                      onPointerDown={e => { e.preventDefault(); ff("bioturbIndex", v); }}
+                      style={{ flex: 1, padding: "5px 2px", fontSize: 11, fontFamily: MONO,
+                        border: `1px solid ${on ? T.indigo : T.border}`,
+                        borderRadius: 3, cursor: "pointer", minHeight: 30,
+                        background: on ? "#DDEAF5" : T.inputBg,
+                        color: on ? T.indigo : T.text2, fontWeight: on ? 700 : 400 }}>
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
+              <span style={{ fontSize: 9, color: T.text3, marginTop: 2 }}>
+                0 sin bioturb. · 3 ~50% · 6 completa (Droser &amp; Bottjer 1986)
+              </span>
+            </div>
+
+            <div style={lblStyle}>
+              <span>Trazas fósiles / Icnofácies
+                {(f.traceIchnos || []).length > 0 && (
+                  <span style={{ marginLeft: 6, color: T.indigo, fontSize: 10, fontWeight: 700 }}>
+                    {(f.traceIchnos || []).length} sel.
+                  </span>
+                )}
+              </span>
+              <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
+                background: T.inputBg }}>
+                {ICHNO_GROUPS.map(g => {
+                  const groupItems = ICHNO_TYPES.filter(t => t[2] === g);
+                  const activeInGroup = groupItems.filter(t => (f.traceIchnos || []).includes(t[0])).length;
+                  const isOpen = openIchnoGroups.has(g);
+                  return (
+                    <div key={g}>
+                      <button type="button"
+                        onPointerDown={e => { e.preventDefault(); toggleIchnoGroup(g); }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "5px 8px", background: T.panelAlt,
+                          border: "none", borderBottom: `1px solid ${T.border}`,
+                          cursor: "pointer", textAlign: "left", minHeight: 34 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: T.indigo,
+                          letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                          Icnofacies {g}
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {activeInGroup > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.indigo,
+                              background: "#DDEAF5", borderRadius: 8, padding: "1px 5px" }}>
+                              {activeInGroup}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, color: T.text3 }}>{isOpen ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {isOpen && groupItems.map(t => {
+                        const on = (f.traceIchnos || []).includes(t[0]);
+                        return (
+                          <label key={t[0]} style={{ display: "flex", alignItems: "center",
+                            gap: 7, padding: "5px 8px", cursor: "pointer",
+                            background: on ? "#DDEAF5" : "transparent",
+                            borderBottom: `1px solid ${T.cardEdge}`,
+                            minHeight: 34 }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => toggleIchno(t[0])}
+                              style={{ cursor: "pointer", accentColor: T.indigo, width: 16, height: 16 }} />
+                            <IchnoIcon id={t[0]} size={18} />
+                            <span style={{ fontSize: 11, color: on ? T.indigo : T.text,
+                              fontWeight: on ? 600 : 400, flex: 1 }}>{t[1]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div style={secStyle}>· Contacto & Ambiente ·</div>
 
             <label style={lblStyle}>Tipo de contacto basal
@@ -3294,6 +3492,18 @@ function ColumnaEstratigrafica() {
                 <rect x={STX} y={MT} width={STW} height={totalH * SPX}
                   fill="#FBF6E6" stroke={T.border} strokeWidth="0.8" />
 
+                {/* Pista de índice de bioturbación */}
+                <text x={BTX + BTW / 2} y={MT - 16} textAnchor="middle" style={{
+                  fontSize: 8, fontFamily: MONO, fill: T.indigo, fontStyle: "italic" }}>BI</text>
+                <rect x={BTX} y={MT} width={BTW} height={totalH * SPX}
+                  fill="#F4F8FC" stroke={T.border} strokeWidth="0.8" />
+
+                {/* Pista de icnofósiles */}
+                <text x={ITX + ITW / 2} y={MT - 16} textAnchor="middle" style={{
+                  fontSize: 8, fontFamily: MONO, fill: T.indigo, fontStyle: "italic" }}>icno</text>
+                <rect x={ITX} y={MT} width={ITW} height={totalH * SPX}
+                  fill="#F4F8FC" stroke={T.border} strokeWidth="0.8" />
+
                 <g clipPath="url(#colclip)">
                   {units.map((u, i) => {
                     const topY = yOf(cumH[i] + u.thickness);
@@ -3502,6 +3712,59 @@ function ColumnaEstratigrafica() {
                   })}
                 </g>
 
+                {/* BI bars */}
+                <g clipPath="url(#biclip)">
+                  {units.map((u, i) => {
+                    if (u.bioturbIndex == null) return null;
+                    const topY = yOf(cumH[i] + u.thickness);
+                    const hpx  = u.thickness * SPX;
+                    const barW = (u.bioturbIndex / 6) * BTW;
+                    const biColor = u.bioturbIndex <= 1 ? "#A8C8E8"
+                      : u.bioturbIndex <= 3 ? "#6699BB"
+                      : u.bioturbIndex <= 5 ? "#336699"
+                      : "#1A4466";
+                    return (
+                      <g key={`${u.id}bi`}>
+                        <rect x={BTX} y={topY} width={barW} height={Math.max(1, hpx)}
+                          fill={biColor} fillOpacity="0.7" />
+                        {hpx > 14 && (
+                          <text x={BTX + BTW / 2} y={topY + hpx / 2 + 3.5}
+                            textAnchor="middle" style={{ fontSize: 8,
+                              fontFamily: MONO, fill: "#1A4466", fontWeight: 600 }}>
+                            {u.bioturbIndex}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+
+                {/* Icnofósiles */}
+                <g clipPath="url(#ichnoclip)">
+                  {units.map((u, i) => {
+                    const ichnos = (u.traceIchnos || []).filter(findI);
+                    if (!ichnos.length) return null;
+                    const topY = yOf(cumH[i] + u.thickness);
+                    const hpx  = u.thickness * SPX;
+                    const midY = topY + hpx / 2;
+                    const gs   = 22;
+                    const cx   = ITX + ITW / 2;
+                    const maxN = Math.max(1, Math.floor(hpx / gs));
+                    const shown = ichnos.slice(0, maxN);
+                    const y0 = midY - (shown.length - 1) * gs / 2;
+                    return (
+                      <g key={`${u.id}icn`}>
+                        {shown.map((iid, j) => (
+                          <g key={`${u.id}icn${j}`}
+                            transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 26})`}>
+                            {ichnoGlyphEls(iid, `${u.id}_i${j}`)}
+                          </g>
+                        ))}
+                      </g>
+                    );
+                  })}
+                </g>
+
                 {units.map((u, i) => {
                   const topY = yOf(cumH[i] + u.thickness);
                   const hpx  = u.thickness * SPX;
@@ -3660,6 +3923,46 @@ function ColumnaEstratigrafica() {
                               stroke={T.ink} strokeWidth=".5" />
                             <text x={28} y={10} style={{ fontSize: 9.5, fontFamily: SANS,
                               fill: T.text2 }}>{m[1]}</text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
+                  {usedIchno.length > 0 && (
+                    <g transform={`translate(0,${ichnoTopY})`}>
+                      <text x={0} y={0} style={{ fontSize: 12, fontFamily: SERIF,
+                        fontStyle: "italic", fill: T.text, fontWeight: 600 }}>
+                        Trazas fósiles / Icnofácies</text>
+                      <line x1={0} y1={4} x2={200} y2={4} stroke={T.gold} strokeWidth=".8" />
+                      {usedIchno.map((t, i) => {
+                        const lx = (i % 2) * 270, ly = 18 + Math.floor(i / 2) * 17;
+                        return (
+                          <g key={t[0]} transform={`translate(${lx},${ly})`}>
+                            <g transform="translate(10,5) scale(0.5)">{ichnoGlyphEls(t[0], `lg${t[0]}`)}</g>
+                            <text x={28} y={9} style={{ fontSize: 9.5, fontFamily: SANS,
+                              fill: T.text2 }}>{t[1]}</text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
+                  {hasBI && (
+                    <g transform={`translate(0,${biTopY})`}>
+                      <text x={0} y={0} style={{ fontSize: 12, fontFamily: SERIF,
+                        fontStyle: "italic", fill: T.text, fontWeight: 600 }}>
+                        Índice de bioturbación (BI)</text>
+                      <line x1={0} y1={4} x2={200} y2={4} stroke={T.gold} strokeWidth=".8" />
+                      {[0,1,2,3,4,5,6].map(v => {
+                        const biColor = v <= 1 ? "#A8C8E8" : v <= 3 ? "#6699BB" : v <= 5 ? "#336699" : "#1A4466";
+                        const desc = ["Sin bioturbación","<10 % bioturbado","10–40 %","40–60 %","60–90 %",">90 %","Bioturbación completa"][v];
+                        return (
+                          <g key={v} transform={`translate(${(v % 4) * 130},${18 + Math.floor(v / 4) * 16})`}>
+                            <rect width="14" height="10" fill={biColor} fillOpacity="0.8"
+                              stroke={T.ink} strokeWidth=".5" />
+                            <text x={20} y={9} style={{ fontSize: 9, fontFamily: MONO,
+                              fill: T.text2 }}><tspan fontWeight="700">{v}</tspan> {desc}</text>
                           </g>
                         );
                       })}
