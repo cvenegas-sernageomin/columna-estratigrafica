@@ -16,8 +16,25 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%233A2818'/><rect x='4' y='2' width='8' height='3' fill='%23A87C2A'/><rect x='4' y='6' width='8' height='3' fill='%232D5F4E'/><rect x='4' y='10' width='8' height='4' fill='%23A8553C'/></svg>" />
   <style>
     * { box-sizing: border-box; }
+    html {
+      /* Evita que iOS infle el texto al rotar el teléfono */
+      -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+    }
     html, body { margin: 0; padding: 0; }
-    #root { min-height: 100vh; }
+    body {
+      /* Sin rebote elástico / pull-to-refresh dentro de la PWA */
+      overscroll-behavior-y: none;
+    }
+    /* 100dvh = alto visible real en móvil (descuenta la barra de URL de iOS) */
+    #root { min-height: 100vh; min-height: 100dvh; }
+    /* Toques: sin flash gris, sin delay de 300 ms, sin selección accidental */
+    button {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      -webkit-user-select: none; user-select: none;
+    }
+    /* Scroll con inercia en iOS para los paneles desplazables */
+    [style*="overflow"] { -webkit-overflow-scrolling: touch; }
     /* Móvil: inputs a 16px para que iOS no haga zoom al enfocar */
     @media (max-width: 760px) {
       input, select, textarea { font-size: 16px !important; }
