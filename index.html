@@ -612,17 +612,52 @@ const CONTACTS = [
   ["gradational", "Gradacional"     ],
   ["erosive",     "Erosivo"         ],
 ];
+// Retrocompat: mapea valores viejos de contactBottom a IDs actuales
+const CONTACT_ALIAS = { "unconformity": "erosive", "angular_unconformity": "erosive" };
 
-const ENVS = [
-  "Fluvial – canal braided",
-  "Fluvial – canal meandroso",
-  "Fluvial – planicie inundación",
-  "Deltaico","Estuarino",
-  "Litoral / shoreface","Marino somero (plataforma)","Marino profundo",
-  "Turbidítico","Lacustre","Abanico aluvial","Eólico",
-  "Glacial / periglacial","Carbonático arrecifal","Evaporítico",
-  "Volcánico subaéreo","Volcánico submarino",
+const ENV_GROUPS = [
+  { label: "Fluvial / continental", envs: [
+    "Fluvial – canal braided",
+    "Fluvial – canal meandroso",
+    "Fluvial – planicie inundación",
+    "Fluvial – planicie mareal",
+    "Abanico aluvial",
+    "Lacustre",
+    "Eólico",
+    "Glacial / periglacial",
+    "Pedogénico / paleosuelo",
+  ]},
+  { label: "Transicional", envs: [
+    "Deltaico – canal distributario",
+    "Deltaico – prodelta / plataforma deltaica",
+    "Estuarino",
+    "Laguna costera",
+    "Litoral / shoreface",
+  ]},
+  { label: "Marino siliciclástico", envs: [
+    "Marino somero (plataforma)",
+    "Turbidítico",
+    "Abanico submarino",
+    "Marino profundo / pelágico",
+  ]},
+  { label: "Carbonático", envs: [
+    "Carbonático – lagoon / planicie mareal",
+    "Carbonático arrecifal",
+    "Carbonático – plataforma",
+  ]},
+  { label: "Especial", envs: [
+    "Evaporítico",
+    "Volcánico subaéreo",
+    "Volcánico submarino",
+  ]},
 ];
+const ENVS = ENV_GROUPS.flatMap(g => g.envs);
+const LEGACY_ENV_ALIAS = {
+  "Deltaico":                        "Deltaico – canal distributario",
+  "Marino profundo":                 "Marino profundo / pelágico",
+  "Marino somero":                   "Marino somero (plataforma)",
+  "Carbonático arrecifal":           "Carbonático arrecifal",
+};
 
 const WEATH = [
   "fresco","ligeramente alterado","moderadamente alterado",
@@ -660,28 +695,49 @@ function unitGeometry(u) {
 // SEDIMENTARY STRUCTURES — librería de símbolos  [id, label, group]
 // ═══════════════════════════════════════════════════════════════
 const STRUCTS = [
-  ["planar_lam",     "Laminación paralela",       "Laminación / estratificación"],
-  ["cross_bed",      "Estratificación cruzada",   "Laminación / estratificación"],
-  ["trough_xbed",    "Estrat. cruzada en artesa", "Laminación / estratificación"],
-  ["convolute",      "Laminación convoluta",      "Laminación / estratificación"],
-  ["current_ripple", "Ondulitas de corriente",    "Ondulitas"],
-  ["wave_ripple",    "Ondulitas de oleaje",       "Ondulitas"],
-  ["climbing_ripple","Ripples escalantes",        "Ondulitas"],
-  ["graded_normal",  "Gradación normal",          "Gradación"],
-  ["graded_reverse", "Gradación inversa",         "Gradación"],
-  ["load_cast",      "Calcos de carga",           "Base / erosión"],
-  ["flute_cast",     "Calcos de flujo (flute)",   "Base / erosión"],
-  ["scour",          "Base erosiva / scour",      "Base / erosión"],
-  ["mudcrack",       "Grietas de desecación",     "Deformación / exposición"],
-  ["slump",          "Slump / pliegue sinsed.",   "Deformación / exposición"],
-  ["flaser",         "Estratificación flaser",    "Heterolítica"],
-  ["lenticular",     "Estratificación lenticular","Heterolítica"],
-  ["bioturbation",   "Bioturbación",              "Biogénicas"],
-  ["vert_burrow",    "Galerías verticales",       "Biogénicas"],
-  ["u_burrow",       "Galería en U",              "Biogénicas"],
-  ["rootlets",       "Raíces / rizolitos",        "Biogénicas"],
-  ["bioclasts",      "Bioclastos / conchillas",   "Biogénicas"],
-  ["nodules",        "Nódulos / concreciones",    "Diagénesis"],
+  // ── Estratificación interna ──
+  ["planar_lam",     "Laminación paralela",              "Estratificación"],
+  ["parting_lin",    "Lineación de partición",            "Estratificación"],
+  ["cross_bed",      "Est. cruzada planar (tabular)",     "Estratificación"],
+  ["trough_xbed",    "Est. cruzada en artesa (trough)",   "Estratificación"],
+  ["herringbone",    "Est. cruzada espiga (herringbone)", "Estratificación"],
+  ["hcs",            "HCS – Hummocky cross-strat.",       "Estratificación"],
+  ["massive",        "Capa masiva (sin estructura)",      "Estratificación"],
+  // ── Ondulitas ──
+  ["current_ripple", "Ondulitas de corriente",            "Ondulitas"],
+  ["wave_ripple",    "Ondulitas de oleaje",               "Ondulitas"],
+  ["climbing_ripple","Ripples escalantes (climbing)",     "Ondulitas"],
+  // ── Heterolítica ──
+  ["flaser",         "Estratificación flaser",            "Heterolítica"],
+  ["wavy_bed",       "Estratificación ondulada (wavy)",   "Heterolítica"],
+  ["lenticular",     "Estratificación lenticular",        "Heterolítica"],
+  // ── Gradación ──
+  ["graded_normal",  "Gradación normal",                  "Gradación"],
+  ["graded_reverse", "Gradación inversa",                 "Gradación"],
+  // ── Sole / base ──
+  ["flute_cast",     "Calcos de flujo (flute)",           "Sole / base"],
+  ["groove_cast",    "Calcos de surco (groove)",          "Sole / base"],
+  ["load_cast",      "Calcos de carga (load)",            "Sole / base"],
+  ["scour",          "Base erosiva / scour",              "Sole / base"],
+  // ── Deformación sinsedimentaria ──
+  ["convolute",      "Laminación convoluta",              "Deformación sinsed."],
+  ["slump",          "Slump / pliegue sinsed.",           "Deformación sinsed."],
+  ["flame",          "Estructuras de llama (flame)",      "Deformación sinsed."],
+  ["dish_pillar",    "Dish-and-pillar (dewatering)",      "Deformación sinsed."],
+  // ── Exposición / diagénesis ──
+  ["mudcrack",       "Grietas de desecación",             "Exposición / diagénesis"],
+  ["syneresis",      "Grietas de sineresis",              "Exposición / diagénesis"],
+  ["nodules",        "Nódulos / concreciones",            "Exposición / diagénesis"],
+  // ── Biogénicas ──
+  ["bioturbation",   "Bioturbación general",              "Biogénicas"],
+  ["vert_burrow",    "Galerías verticales (Skolithos)",   "Biogénicas"],
+  ["u_burrow",       "Galería en U (Diplocraterion)",     "Biogénicas"],
+  ["rootlets",       "Raíces / rizolitos",                "Biogénicas"],
+  ["bioclasts",      "Bioclastos / conchillas",           "Biogénicas"],
+  // ── Carbonáticas ──
+  ["stromatolite",   "Estromatolitos",                    "Carbonáticas"],
+  ["tepee",          "Tepees (carbonático)",               "Carbonáticas"],
+  ["hardground",     "Hardground / fondo endurecido",     "Carbonáticas"],
 ];
 const STRUCT_GROUPS = [...new Set(STRUCTS.map(s => s[2]))];
 const findS = id => STRUCTS.find(s => s[0] === id);
@@ -708,7 +764,7 @@ function glyphEls(id, k = "g") {
     case "scour":          return [pa("M-11,-4 Q-7,4 -3,-4 Q1,4 5,-4 Q9,4 11,-4")];
     case "mudcrack":       return [ln(0,-9,0,9),pa("M0,-3 l-6,5"),pa("M0,2 l6,4"),pa("M0,0 l-6,-4")];
     case "slump":          return [pa("M-9,6 C-3,6 -6,-6 0,-6 C6,-6 3,6 9,6")];
-    case "flaser":         return [pa("M-11,4 Q-7,-3 -3,4 Q1,-3 5,4 Q9,-3 11,4"),el(-5,1,2.4,1),el(4,1,2.4,1)];
+    case "flaser":         return [ln(-11,6,11,6,1),pa("M-11,6 Q-7,-1 -3,6 Q1,-1 5,6 Q9,-1 11,6"),el(-4,-1,3,1.5),el(5,0,2.5,1.5)];
     case "lenticular":     return [el(-5,-3,5,2),el(4,4,5,2)];
     case "bioturbation":   return [pa("M-6,-9 C-9,-4 -3,-2 -6,3 C-9,7 -3,8 -6,9"),pa("M5,-9 C2,-4 8,-2 5,3 C2,7 8,8 5,9")];
     case "vert_burrow":    return [pa("M-5,-9 L-5,5 Q-5,9 -2,9"),pa("M5,-9 L5,5 Q5,9 2,9")];
@@ -716,6 +772,18 @@ function glyphEls(id, k = "g") {
     case "rootlets":       return [ln(0,-9,0,9),pa("M0,-2 l-5,4"),pa("M0,2 l5,4"),pa("M0,5 l-4,4")];
     case "bioclasts":      return [pa("M-9,2 Q-4,-9 5,-3 Q9,-1 7,3"),pa("M-9,2 Q-2,5 7,3",1)];
     case "nodules":        return [ci(-4,-2,3.4),ci(5,3,2.6)];
+    case "parting_lin":   return [ln(-9,-5,9,-5,1),ln(-7,-2,7,-2,1),ln(-9,1,9,1,1),ln(-7,4,7,4,1)];
+    case "herringbone":   return [pa("M-10,8 L0,-2 L10,8",1.4), pa("M-10,-2 L0,8 L10,-2",1.4)];
+    case "hcs":           return [pa("M-11,4 Q-7,-5 -3,4 Q1,-5 5,4 Q9,-5 11,4"),pa("M-11,-2 Q-7,7 -3,-2 Q1,7 5,-2 Q9,7 11,-2")];
+    case "massive":       return [pa("M-9,-8 L9,-8 L9,8 L-9,8 Z",1),ci(0,0,1.2)];
+    case "wavy_bed":      return [pa("M-11,5 Q-7,-1 -3,5 Q1,-1 5,5 Q9,-1 11,5"),ln(-11,1,11,1,0.8),pa("M-11,-3 Q-7,3 -3,-3 Q1,3 5,-3 Q9,3 11,-3")];
+    case "groove_cast":   return [ln(-10,-5,10,-5),ln(-10,-1,10,-1),ln(-10,3,10,3),ln(-10,7,10,7)];
+    case "flame":         return [pa("M-5,9 C-7,2 -2,-4 0,-9 C2,-4 7,2 5,9"),pa("M-3,9 C-4,4 -1,0 0,-5"),ln(-9,9,9,9,1.2)];
+    case "dish_pillar":   return [pa("M-9,2 Q-5,8 0,2 Q5,8 9,2"),ln(0,-8,0,2,1.4)];
+    case "syneresis":     return [pa("M-8,-3 l3,3 l-4,5"),pa("M0,-5 l2,6 l-3,4"),pa("M6,-2 l-2,4 l3,4")];
+    case "stromatolite":  return [pa("M-9,8 Q-9,-2 0,-8 Q9,-2 9,8"),pa("M-6,8 Q-6,0 0,-5 Q6,0 6,8"),ln(-9,8,9,8,1)];
+    case "tepee":         return [pa("M-10,6 L0,-8 L10,6"),pa("M-6,6 L0,-3 L6,6"),ln(-10,6,10,6,1.2)];
+    case "hardground":    return [ln(-9,-6,9,-6,2),ci(-6,-2,2),ci(0,-2,2),ci(6,-2,2),ln(-9,4,9,4,0.8)];
     default:               return [ci(0,0,2)];
   }
 }
@@ -1920,6 +1988,12 @@ function ColumnaEstratigrafica() {
   const [edgeStyle,  setEdgeStyle]  = useState("freehand");
   const [vw,         setVw]         = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   const [mobileView, setMobileView] = useState("edit");
+  const [openStructGroups, setOpenStructGroups] = useState(() => new Set(["Estratificación"]));
+  const toggleStructGroup = g => setOpenStructGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
   useEffect(() => {
     const onR = () => setVw(window.innerWidth);
     window.addEventListener("resize", onR);
@@ -2015,7 +2089,15 @@ function ColumnaEstratigrafica() {
     setUnits(p => p.map(u => u.id === editId ? { ...f, id: editId, thickness: t } : u));
     setEditId(null); setF(DF);
   };
-  const doEdit   = u => { setEditId(u.id); setF({ ...u, thickness: String(u.thickness) }); };
+  const doEdit   = u => {
+    setEditId(u.id); setF({ ...u, thickness: String(u.thickness) });
+    const syms = (u.structSymbols || []);
+    const activeGroups = new Set(syms.map(id => {
+      const s = STRUCTS.find(s => s[0] === id);
+      return s ? s[2] : null;
+    }).filter(Boolean));
+    setOpenStructGroups(activeGroups.size > 0 ? activeGroups : new Set(["Estratificación"]));
+  };
   const doCancel = () => { setEditId(null); setF(DF); };
   const doDel    = id => {
     setUnits(p => p.filter(u => u.id !== id));
@@ -2074,8 +2156,8 @@ function ColumnaEstratigrafica() {
         structures:    r.structures || "",
         structSymbols: (r.structSymbols || "").split(";").map(s => s.trim()).filter(s => validStruct.has(s)),
         fossilsDating: r.fossilsDating || "",
-        contactBottom: validCont.has(r.contactBottom)   ? r.contactBottom  : "sharp",
-        environment:   r.environment || "",
+        contactBottom: validCont.has(CONTACT_ALIAS[r.contactBottom] || r.contactBottom) ? (CONTACT_ALIAS[r.contactBottom] || r.contactBottom) : "sharp",
+        environment:   LEGACY_ENV_ALIAS[r.environment] || r.environment || "",
         paleocurrent:  r.paleocurrent || "",
         weathering:    validWeath.has(r.weathering)     ? r.weathering     : "fresco",
         notes:         r.notes || "",
@@ -2171,6 +2253,8 @@ function ColumnaEstratigrafica() {
         lithoId2: normalizeLithoId(u.lithoId2),
         thickness: parseFloat(u.thickness) || 0,
         structSymbols: Array.isArray(u.structSymbols) ? u.structSymbols : [],
+        contactBottom: CONTACT_ALIAS[u.contactBottom] || u.contactBottom || DF.contactBottom,
+        environment:   LEGACY_ENV_ALIAS[u.environment] || u.environment || "",
       })).filter(u => u.thickness > 0);
       if (!parsed.length) { showToast("⚠ El archivo no tiene unidades válidas"); return; }
       setUnits(parsed); setEditId(null); setF(DF);
@@ -2742,30 +2826,52 @@ function ColumnaEstratigrafica() {
                 )}
               </span>
               <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
-                maxHeight: 170, overflowY: "auto", background: T.inputBg }}>
-                {STRUCT_GROUPS.map(g => (
-                  <div key={g}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: T.text3,
-                      padding: "3px 8px", background: T.panelAlt,
-                      borderBottom: `1px solid ${T.border}`, letterSpacing: "0.04em",
-                      textTransform: "uppercase" }}>{g}</div>
-                    {STRUCTS.filter(s => s[2] === g).map(s => {
-                      const on = (f.structSymbols || []).includes(s[0]);
-                      return (
-                        <label key={s[0]} style={{ display: "flex", alignItems: "center",
-                          gap: 7, padding: "4px 8px", cursor: "pointer",
-                          background: on ? "#E8F2E3" : "transparent",
-                          borderBottom: `1px solid ${T.cardEdge}` }}>
-                          <input type="checkbox" checked={on}
-                            onChange={() => toggleStruct(s[0])}
-                            style={{ cursor: "pointer", accentColor: T.green }} />
-                          <span style={{ fontSize: 11, color: on ? T.green : T.text,
-                            fontWeight: on ? 600 : 400 }}>{s[1]}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
+                background: T.inputBg }}>
+                {STRUCT_GROUPS.map(g => {
+                  const groupItems = STRUCTS.filter(s => s[2] === g);
+                  const activeInGroup = groupItems.filter(s => (f.structSymbols || []).includes(s[0])).length;
+                  const isOpen = openStructGroups.has(g);
+                  return (
+                    <div key={g}>
+                      <button
+                        type="button"
+                        onClick={() => toggleStructGroup(g)}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "5px 8px", background: T.panelAlt,
+                          border: "none", borderBottom: `1px solid ${T.border}`,
+                          cursor: "pointer", textAlign: "left", minHeight: 34 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: T.text3,
+                          letterSpacing: "0.04em", textTransform: "uppercase" }}>{g}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {activeInGroup > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.green,
+                              background: "#D6EDD5", borderRadius: 8, padding: "1px 5px" }}>
+                              {activeInGroup}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, color: T.text3 }}>{isOpen ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {isOpen && groupItems.map(s => {
+                        const on = (f.structSymbols || []).includes(s[0]);
+                        return (
+                          <label key={s[0]} style={{ display: "flex", alignItems: "center",
+                            gap: 7, padding: "5px 8px", cursor: "pointer",
+                            background: on ? "#E8F2E3" : "transparent",
+                            borderBottom: `1px solid ${T.cardEdge}`,
+                            minHeight: 34 }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => toggleStruct(s[0])}
+                              style={{ cursor: "pointer", accentColor: T.green, width: 16, height: 16 }} />
+                            <StructIcon id={s[0]} size={18} />
+                            <span style={{ fontSize: 11, color: on ? T.green : T.text,
+                              fontWeight: on ? 600 : 400, flex: 1 }}>{s[1]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -2794,7 +2900,11 @@ function ColumnaEstratigrafica() {
               <select value={f.environment} style={inputStyle}
                 onChange={e => ff("environment", e.target.value)}>
                 <option value="">— seleccionar —</option>
-                {ENVS.map(e => <option key={e} value={e}>{e}</option>)}
+                {ENV_GROUPS.map(g => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.envs.map(e => <option key={e} value={e}>{e}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </label>
 
