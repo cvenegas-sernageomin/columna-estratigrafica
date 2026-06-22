@@ -347,6 +347,7 @@ const STRUCTS = [
   ["groove_cast",    "Calcos de surco (groove)",          "Sole / base"],
   ["load_cast",      "Calcos de carga (load)",            "Sole / base"],
   ["scour",          "Base erosiva / scour",              "Sole / base"],
+  ["channel",        "Canal (geometría erosiva)",         "Sole / base"],
   // ── Deformación sinsedimentaria ──
   ["convolute",      "Laminación convoluta",              "Deformación sinsed."],
   ["slump",          "Slump / pliegue sinsed.",           "Deformación sinsed."],
@@ -455,6 +456,7 @@ function glyphEls(id, k = "g") {
     case "load_cast":      return [ln(-10,-4,10,-4),pa("M-9,-4 Q-9,7 -4,7 Q1,7 1,-4"),pa("M1,-4 Q1,8 6,8 Q10,8 10,-4")];
     case "flute_cast":     return [pa("M-9,-3 Q-9,6 -4,6 Q0,6 -1,-3"),pa("M2,-3 Q2,7 7,6 Q10,5 9,-3")];
     case "scour":          return [pa("M-11,-4 Q-7,4 -3,-4 Q1,4 5,-4 Q9,4 11,-4")];
+    case "channel":        return [pa("M-11,-4 Q-11,8 0,8 Q11,8 11,-4",1.6),ln(-8,2,8,2,0.7)];
     case "mudcrack":       return [ln(0,-9,0,9),pa("M0,-3 l-6,5"),pa("M0,2 l6,4"),pa("M0,0 l-6,-4")];
     case "slump":          return [pa("M-9,6 C-3,6 -6,-6 0,-6 C6,-6 3,6 9,6")];
     case "flaser":         return [ln(-11,6,11,6,1),pa("M-11,6 Q-7,-1 -3,6 Q1,-1 5,6 Q9,-1 11,6"),el(-4,-1,3,1.5),el(5,0,2.5,1.5)];
