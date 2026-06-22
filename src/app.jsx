@@ -276,6 +276,12 @@ const ENV_GROUPS = [
   ]},
 ];
 const ENVS = ENV_GROUPS.flatMap(g => g.envs);
+const LEGACY_ENV_ALIAS = {
+  "Deltaico":                        "Deltaico – canal distributario",
+  "Marino profundo":                 "Marino profundo / pelágico",
+  "Marino somero":                   "Marino somero (plataforma)",
+  "Carbonático arrecifal":           "Carbonático arrecifal",
+};
 
 const WEATH = [
   "fresco","ligeramente alterado","moderadamente alterado",
@@ -1775,7 +1781,7 @@ function ColumnaEstratigrafica() {
         structSymbols: (r.structSymbols || "").split(";").map(s => s.trim()).filter(s => validStruct.has(s)),
         fossilsDating: r.fossilsDating || "",
         contactBottom: validCont.has(CONTACT_ALIAS[r.contactBottom] || r.contactBottom) ? (CONTACT_ALIAS[r.contactBottom] || r.contactBottom) : "sharp",
-        environment:   r.environment || "",
+        environment:   LEGACY_ENV_ALIAS[r.environment] || r.environment || "",
         paleocurrent:  r.paleocurrent || "",
         weathering:    validWeath.has(r.weathering)     ? r.weathering     : "fresco",
         notes:         r.notes || "",
@@ -1872,6 +1878,7 @@ function ColumnaEstratigrafica() {
         thickness: parseFloat(u.thickness) || 0,
         structSymbols: Array.isArray(u.structSymbols) ? u.structSymbols : [],
         contactBottom: CONTACT_ALIAS[u.contactBottom] || u.contactBottom || DF.contactBottom,
+        environment:   LEGACY_ENV_ALIAS[u.environment] || u.environment || "",
       })).filter(u => u.thickness > 0);
       if (!parsed.length) { showToast("⚠ El archivo no tiene unidades válidas"); return; }
       setUnits(parsed); setEditId(null); setF(DF);
