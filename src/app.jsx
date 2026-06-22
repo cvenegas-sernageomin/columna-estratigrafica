@@ -239,16 +239,43 @@ const CONTACTS = [
 // Retrocompat: mapea valores viejos de contactBottom a IDs actuales
 const CONTACT_ALIAS = { "unconformity": "erosive", "angular_unconformity": "erosive" };
 
-const ENVS = [
-  "Fluvial – canal braided",
-  "Fluvial – canal meandroso",
-  "Fluvial – planicie inundación",
-  "Deltaico","Estuarino",
-  "Litoral / shoreface","Marino somero (plataforma)","Marino profundo",
-  "Turbidítico","Lacustre","Abanico aluvial","Eólico",
-  "Glacial / periglacial","Carbonático arrecifal","Evaporítico",
-  "Volcánico subaéreo","Volcánico submarino",
+const ENV_GROUPS = [
+  { label: "Fluvial / continental", envs: [
+    "Fluvial – canal braided",
+    "Fluvial – canal meandroso",
+    "Fluvial – planicie inundación",
+    "Fluvial – planicie mareal",
+    "Abanico aluvial",
+    "Lacustre",
+    "Eólico",
+    "Glacial / periglacial",
+    "Pedogénico / paleosuelo",
+  ]},
+  { label: "Transicional", envs: [
+    "Deltaico – canal distributario",
+    "Deltaico – prodelta / plataforma deltaica",
+    "Estuarino",
+    "Laguna costera",
+    "Litoral / shoreface",
+  ]},
+  { label: "Marino siliciclástico", envs: [
+    "Marino somero (plataforma)",
+    "Turbidítico",
+    "Abanico submarino",
+    "Marino profundo / pelágico",
+  ]},
+  { label: "Carbonático", envs: [
+    "Carbonático – lagoon / planicie mareal",
+    "Carbonático arrecifal",
+    "Carbonático – plataforma",
+  ]},
+  { label: "Especial", envs: [
+    "Evaporítico",
+    "Volcánico subaéreo",
+    "Volcánico submarino",
+  ]},
 ];
+const ENVS = ENV_GROUPS.flatMap(g => g.envs);
 
 const WEATH = [
   "fresco","ligeramente alterado","moderadamente alterado",
@@ -2490,7 +2517,11 @@ function ColumnaEstratigrafica() {
               <select value={f.environment} style={inputStyle}
                 onChange={e => ff("environment", e.target.value)}>
                 <option value="">— seleccionar —</option>
-                {ENVS.map(e => <option key={e} value={e}>{e}</option>)}
+                {ENV_GROUPS.map(g => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.envs.map(e => <option key={e} value={e}>{e}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </label>
 
