@@ -771,9 +771,9 @@ function latLonToUtm(lat, lon, forceZone, forceSouth) {
 // manteo : dip δ del estrato (0-90°)
 // azTraza: azimut de la traza/recorrido (0-360°)
 // dh     : largo de la traza en planta (m, horizontal)
-// deltaH : desnivel topográfico (+ asciende, − desciende a lo largo de la traza)
-// signChoice: "neg" cuando la traza asciende en el MISMO sentido del buzamiento,
-//             "pos" cuando asciende en sentido CONTRARIO al buzamiento.
+// deltaH : desnivel topográfico en valor absoluto (siempre positivo, en metros)
+// signChoice: "neg" pendiente cae en el MISMO sentido del buzamiento (resta)
+//             "pos" pendiente cae en sentido CONTRARIO al buzamiento (suma)
 //
 // Devuelve { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo } o null.
 function normAz(a) { return ((a % 360) + 360) % 360; }
@@ -816,10 +816,9 @@ function realThicknessBadgley({ rumboAz, dirBuz, manteo, azTraza, dh, deltaH, si
   const cosG = Math.abs(Math.cos(gamma * Math.PI/180));
   const termPlani = d * sinδ * cosG;
   const termTopo  = Math.abs(Δh) * cosδ;
-  const sgnDh = Δh >= 0 ? 1 : -1;
   const espesor = signChoice === "pos"
-    ? termPlani + sgnDh * termTopo
-    : termPlani - sgnDh * termTopo;
+    ? termPlani + termTopo
+    : termPlani - termTopo;
   const manteoAparente = Math.atan(Math.tan(δ * Math.PI/180) * cosG) * 180/Math.PI;
   return { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo, cosG };
 }
@@ -1656,7 +1655,7 @@ const DF = {
   dirBuz: "derecha",// "derecha" o "izquierda" del rumbo
   azTraza: "",      // azimut del recorrido en esa unidad (°)
   dh: "",           // largo de traza en planta (m)
-  deltaH: "",       // desnivel topográfico (+ asciende, − desciende)
+  deltaH: "",       // desnivel topográfico (valor absoluto en metros)
   signChoice: "neg",// "neg" mismo sentido buzamiento, "pos" contrario
   // Datos duros de intercalación / alternancia (en cm)
   interpLi1MinCm: "", interpLi1MaxCm: "",  // rango de espesor de la litología principal
@@ -2311,22 +2310,22 @@ function ColumnaEstratigrafica() {
                     value={f.dh} onChange={e => ff("dh", e.target.value)}
                     style={inputStyle} />
                 </label>
-                <label style={{ ...lblStyle, flex: 1 }}>Desnivel Δh (m, con signo)
-                  <input type="number" step="any" placeholder="+ subo  /  − bajo"
+                <label style={{ ...lblStyle, flex: 1 }}>Desnivel Δh (m, absoluto)
+                  <input type="number" step="any" min="0" placeholder="ej: 12.5"
                     value={f.deltaH} onChange={e => ff("deltaH", e.target.value)}
                     style={inputStyle} />
                 </label>
               </div>
               <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
                 fontStyle: "italic", marginTop: -4 }}>
-                dh = distancia horizontal de la traza · Δh positivo si la traza asciende.
+                dh = distancia horizontal de la traza · Δh = desnivel topográfico (siempre positivo).
               </div>
 
               <div style={lblStyle}>
-                <span>Signo de la corrección topográfica</span>
+                <span>Relación pendiente / buzamiento</span>
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  {[["neg", "− Δh·cos δ", "Traza asciende en el MISMO sentido del buzamiento"],
-                    ["pos", "+ Δh·cos δ", "Traza asciende en sentido CONTRARIO al buzamiento"]].map(([v, l, d]) => (
+                  {[["neg", "− Δh·cos δ", "Pendiente cae hacia el MISMO lado del manteo"],
+                    ["pos", "+ Δh·cos δ", "Pendiente cae en sentido CONTRARIO al manteo"]].map(([v, l, d]) => (
                     <button key={v} type="button" onClick={() => ff("signChoice", v)}
                       style={{ ...tgStyle(f.signChoice === v), padding: "7px 8px",
                         fontSize: 10, textAlign: "left", lineHeight: 1.35 }}>
@@ -2355,7 +2354,7 @@ function ColumnaEstratigrafica() {
                       </span>
                     </div>
                     {g && g.espesor < 0 && (
-                      <div style={{ color: T.danger, fontSize: 10, marginTop: 3 }}>⚠ Valor negativo — revisá el signo de la corrección</div>
+                      <div style={{ color: T.danger, fontSize: 10, marginTop: 3 }}>⚠ Valor negativo — revisá la relación pendiente/buzamiento</div>
                     )}
                     {g && isFinite(g.espesor) && (
                       <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
