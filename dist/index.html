@@ -16,8 +16,25 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%233A2818'/><rect x='4' y='2' width='8' height='3' fill='%23A87C2A'/><rect x='4' y='6' width='8' height='3' fill='%232D5F4E'/><rect x='4' y='10' width='8' height='4' fill='%23A8553C'/></svg>" />
   <style>
     * { box-sizing: border-box; }
+    html {
+      /* Evita que iOS infle el texto al rotar el teléfono */
+      -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+    }
     html, body { margin: 0; padding: 0; }
-    #root { min-height: 100vh; }
+    body {
+      /* Sin rebote elástico / pull-to-refresh dentro de la PWA */
+      overscroll-behavior-y: none;
+    }
+    /* 100dvh = alto visible real en móvil (descuenta la barra de URL de iOS) */
+    #root { min-height: 100vh; min-height: 100dvh; }
+    /* Toques: sin flash gris, sin delay de 300 ms, sin selección accidental */
+    button {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      -webkit-user-select: none; user-select: none;
+    }
+    /* Scroll con inercia en iOS para los paneles desplazables */
+    [style*="overflow"] { -webkit-overflow-scrolling: touch; }
     /* Móvil: inputs a 16px para que iOS no haga zoom al enfocar */
     @media (max-width: 760px) {
       input, select, textarea { font-size: 16px !important; }
@@ -404,7 +421,11 @@ const SX  = 146, SAW = 46;   // pista de muestras
 const CX  = 200, CW  = 92;   // columna litológica
 const STX = CX + CW + 8;     // pista de estructuras (der. de la columna)
 const STW = 36;              // ancho pista de estructuras
-const LX  = STX + STW + 8;   // inicio de etiquetas de texto
+const BTX = STX + STW + 4;   // pista de bioturbación (BI 0–6)
+const BTW = 18;
+const ITX = BTX + BTW + 4;   // pista de icnofósiles / trazas
+const ITW = 30;
+const LX  = ITX + ITW + 6;   // inicio de etiquetas de texto
 const SW  = 840;
 const PHX = SW - 100;
 const PHW = 80, PHH = 60;
@@ -417,8 +438,8 @@ const LITH = [
   ["conglomerate", "Conglomerado",            "p-congl",   "cobble", "Sedimentarias clásticas"],
   ["breccia",      "Brecha sedimentaria",     "p-brecc",   "cobble", "Sedimentarias clásticas"],
   ["sandstone",    "Arenisca masiva",         "p-sand",    "ms",     "Sedimentarias clásticas"],
-  ["xbedded_sand", "Arenisca est. cruzada",   "p-xsand",   "cs",     "Sedimentarias clásticas"],
-  ["ripple_sand",  "Arenisca con ripples",    "p-rsand",   "fs",     "Sedimentarias clásticas"],
+  ["calc_sandstone","Arenisca calcárea",       "p-calcsand","ms",     "Sedimentarias clásticas"],
+  ["greywacke",    "Grauvaca",                "p-greyw",   "cs",     "Sedimentarias clásticas"],
   ["siltstone",    "Limolita",                "p-silt",    "silt",   "Sedimentarias clásticas"],
   ["shale",        "Pelita / Lutita",         "p-shale",   "clay",   "Sedimentarias clásticas"],
   // ── Carbonatos y químicas ──
@@ -428,6 +449,10 @@ const LITH = [
   ["chert",        "Chert / Ftanita",         "p-chert",   "clay",   "Carbonatos y químicas"],
   ["gypsum",       "Yeso / Evaporita",        "p-gyps",    "clay",   "Carbonatos y químicas"],
   ["coal",         "Carbón",                  "p-coal",    "clay",   "Carbonatos y químicas"],
+  ["sandy_lime",   "Caliza arenosa",          "p-sandylm", "ms",     "Carbonatos y químicas"],
+  ["oolitic_lime", "Caliza oolítica",       "p-oolitlm", "ms",     "Carbonatos y químicas"],
+  ["chalk",        "Creta / Chalk",           "p-chalk",   "clay",   "Carbonatos y químicas"],
+  ["marl",         "Marga",                   "p-marl",    "silt",   "Carbonatos y químicas"],
   // ── Volcánicas — lavas y coladas ──
   ["basalt",       "Lava basáltica",          "p-bslt",    "coherent", "Volcánicas — lavas y coladas"],
   ["andesite",     "Lava andesítica",         "p-andes",   "coherent", "Volcánicas — lavas y coladas"],
@@ -435,23 +460,56 @@ const LITH = [
   ["rhyolite",     "Lava riolítica",          "p-rhyo",    "coherent", "Volcánicas — lavas y coladas"],
   ["pillow_lava",  "Lava almohadillada",      "p-pillow",  "coherent", "Volcánicas — lavas y coladas"],
   ["autobreccia",  "Autobrecha de lava",      "p-autobr",  "cobble",   "Volcánicas — lavas y coladas"],
-  // ── Volcánicas — piroclásticas ──
-  ["ash_tuff",     "Toba de ceniza",          "p-ashtuff", "silt",     "Volcánicas — piroclásticas"],
-  ["lapilli_tuff", "Toba de lapilli",         "p-lapilli", "granule",  "Volcánicas — piroclásticas"],
-  ["block_tuff",   "Toba de bloques y bombas","p-blocktuff","cobble",  "Volcánicas — piroclásticas"],
-  ["ignimbrite",   "Ignimbrita / toba soldada","p-ignim",  "fs",       "Volcánicas — piroclásticas"],
-  ["agglomerate",  "Aglomerado volcánico",    "p-agglom",  "cobble",   "Volcánicas — piroclásticas"],
-  ["volc_breccia", "Brecha volcánica / piroclástica","p-vbrecc","cobble","Volcánicas — piroclásticas"],
-  // ── Volcaniclásticas / epiclásticas ──
-  ["tuffite",          "Tufita",                  "p-tuffite",  "fs",     "Volcaniclásticas / epiclásticas"],
-  ["lapillite",        "Lapillita (epiclástica)", "p-lapillite","granule","Volcaniclásticas / epiclásticas"],
-  ["epiclastic",       "Roca epiclástica (retrabajada)","p-epiclas","ms", "Volcaniclásticas / epiclásticas"],
-  ["epiclastic_breccia","Brecha epiclástica",     "p-epibrecc","cobble","Volcaniclásticas / epiclásticas"],
-  // ── Intrusivas plutónicas (grano grueso, cristalizadas en profundidad) ──
+  // ── Tefras — depósitos piroclásticos no litificados ──
+  ["tefra_bloques",         "Tefra de bloques",              "p-tefblk",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_bombas",          "Tefra de bombas",               "p-tefbmb",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_bloques_lapilli", "Tefra de bloques y lapilli",    "p-tefblk",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_bombas_lapilli",  "Tefra de bombas y lapilli",     "p-tefbmb",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_bloques_ceniza",  "Tefra de bloques y ceniza",     "p-tefblk",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_bombas_ceniza",   "Tefra de bombas y ceniza",      "p-tefbmb",  "cobble",  "Tefras (piroclásticos no litificados)"],
+  ["tefra_lapilli_bloques", "Tefra de lapilli y bloques",    "p-teflap",  "granule", "Tefras (piroclásticos no litificados)"],
+  ["tefra_lapilli_bombas",  "Tefra de lapilli y bombas",     "p-teflap",  "granule", "Tefras (piroclásticos no litificados)"],
+  ["tefra_ceniza_bloques",  "Tefra de ceniza y bloques",     "p-tefcen",  "silt",    "Tefras (piroclásticos no litificados)"],
+  ["tefra_ceniza_bombas",   "Tefra de ceniza y bombas",      "p-tefcen",  "silt",    "Tefras (piroclásticos no litificados)"],
+  ["lapilli_tefra",         "Lapilli",                       "p-teflap",  "granule", "Tefras (piroclásticos no litificados)"],
+  ["tefra_lapilli_ceniza",  "Tefra de lapilli y ceniza",     "p-teflap",  "granule", "Tefras (piroclásticos no litificados)"],
+  ["tefra_ceniza_lapilli",  "Tefra de ceniza y lapilli",     "p-tefcen",  "silt",    "Tefras (piroclásticos no litificados)"],
+  ["ceniza_tefra",          "Ceniza",                        "p-tefcen",  "silt",    "Tefras (piroclásticos no litificados)"],
+  ["tefra_indif",           "Tefra indiferenciada",          "p-teflap",  "granule", "Tefras (piroclásticos no litificados)"],
+  // ── Rocas volcánicas piroclásticas — litificados ──
+  ["brecha_pirocl",     "Brecha piroclástica",                       "p-vbrecc",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["aglomerado",        "Aglomerado",                                "p-agglom",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["br_tob_blk_lap",    "Brecha tobácea de bloques y lapilli",       "p-vbrecc",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["agl_tob_bmb_lap",   "Aglomerado tobáceo de bombas y lapilli",    "p-agglom",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["br_tob_blk_cen",    "Brecha tobácea de bloques y ceniza",        "p-vbrecc",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["agl_tob_bmb_cen",   "Aglomerado tobáceo de bombas y ceniza",     "p-agglom",   "cobble",  "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_br_lap_blk",   "Toba brechosa de lapilli y bloques",        "p-lapilli",  "granule", "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_agl_lap_bmb",  "Toba aglomerádica de lapilli y bombas",     "p-lapilli",  "granule", "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_br_cen_blk",   "Toba brechosa de ceniza y bloques",         "p-blocktuff","silt",    "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_agl_cen_bmb",  "Toba aglomerádica de ceniza y bombas",      "p-ashtuff",  "silt",    "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_lapilli",       "Toba de lapilli",                           "p-lapilli",  "granule", "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_lap_cen",       "Toba de lapilli y ceniza",                  "p-lapilli",  "granule", "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_cen_lap",       "Toba de ceniza y lapilli",                  "p-ashtuff",  "silt",    "Rocas volcánicas piroclásticas (litificados)"],
+  ["toba_ceniza",        "Toba de ceniza",                            "p-ashtuff",  "silt",    "Rocas volcánicas piroclásticas (litificados)"],
+  ["roca_pirocl_indif",  "Roca piroclástica indiferenciada",          "p-lapilli",  "granule", "Rocas volcánicas piroclásticas (litificados)"],
+  // ── Tufitas / Volcanosedimentarios (25–75% piroclastos) ──
+  ["tuffite",          "Tufita",                  "p-tuffite",  "fs",     "Tufitas / Volcanosedimentarios"],
+  ["lapillite",        "Lapillita",               "p-lapillite","granule","Tufitas / Volcanosedimentarios"],
+  // ── Depósitos epiclásticos (<25% piroclastos) ──
+  ["epiclastic",       "Roca epiclástica (retrabajada)","p-epiclas","ms", "Depósitos epiclásticos"],
+  ["epiclastic_breccia","Brecha epiclástica",     "p-epibrecc","cobble","Depósitos epiclásticos"],
+  // ── Intrusivas plutónicas (serie QAP Streckeisen, félsica → máfica) ──
+  ["afs_granite",  "Álcali-feldespato granito","p-afgran", "coherent", "Intrusivas plutónicas"],
   ["granite",      "Granito",                 "p-gran",    "coherent", "Intrusivas plutónicas"],
   ["granodiorite", "Granodiorita",            "p-grdior",  "coherent", "Intrusivas plutónicas"],
   ["tonalite",     "Tonalita",                "p-tonal",   "coherent", "Intrusivas plutónicas"],
+  ["qz_syenite",   "Cuarzosienita",           "p-qsyen",   "coherent", "Intrusivas plutónicas"],
+  ["syenite",      "Sienita",                 "p-syen",    "coherent", "Intrusivas plutónicas"],
+  ["qz_monzonite", "Cuarzomonzonita",         "p-qmonz",   "coherent", "Intrusivas plutónicas"],
+  ["monzonite",    "Monzonita",               "p-monz",    "coherent", "Intrusivas plutónicas"],
+  ["monzodiorite", "Monzodiorita",            "p-monzdi",  "coherent", "Intrusivas plutónicas"],
   ["diorite",      "Diorita",                 "p-dior",    "coherent", "Intrusivas plutónicas"],
+  ["monzogabbro",  "Monzogabro",              "p-monzgb",  "coherent", "Intrusivas plutónicas"],
   ["gabbro",       "Gabro",                   "p-gabbro",  "coherent", "Intrusivas plutónicas"],
   // ── Intrusivas hipabisales / subvolcánicas (cuerpos menores) ──
   ["porphyry",     "Pórfido",                 "p-porph",   "coherent", "Intrusivas hipabisales / subvolcánicas"],
@@ -462,14 +520,40 @@ const LITH = [
   ["schist",       "Esquisto",                "p-schist",  "coherent", "Metamórficas (por textura)"],
   ["gneiss",       "Gneis",                   "p-gneiss",  "coherent", "Metamórficas (por textura)"],
   ["amphibolite",  "Anfibolita",              "p-amphib",  "coherent", "Metamórficas (por textura)"],
+  ["quartzite",    "Cuarcita",                "p-quartzite","coherent","Metamórficas (por textura)"],
+  ["marble",       "Mármol",                  "p-marble",  "coherent", "Metamórficas (por textura)"],
+  ["hornfels",     "Cornubianita / Hornfels", "p-hornfels","coherent", "Metamórficas (por textura)"],
+  ["serpentinite", "Serpentinita",            "p-serpent", "coherent", "Metamórficas (por textura)"],
   // ── Cubierto / sin afloramiento ──
   ["covered",      "Tapado / cubierto (sin afloramiento)", "p-covered", "coherent", "Cubierto / sin afloramiento"],
 ];
 
 const LITH_GROUPS = [...new Set(LITH.map(l => l[4]))];
+// Precomputado: litologías por grupo (LITH es constante; evita filtrar en cada render)
+const LITH_BY_GROUP = new Map(LITH_GROUPS.map(g => [g, LITH.filter(l => l[4] === g)]));
+
+// Catálogo de modificadores de zona (techo / muro de una unidad)
+// [id, nombre, patternId]
+const MOD_TYPES = [
+  ["paleosuelo",     "Paleosuelo",               "mod-paleosuelo"],
+  ["trazas",         "Trazas fósiles",            "mod-trazas"],
+  ["bioturbacion",   "Bioturbación",              "mod-bioturbacion"],
+  ["oxidacion",      "Oxidación / hematita",      "mod-oxidacion"],
+  ["cemento_calc",   "Cemento calcáreo",          "mod-cemento-calc"],
+  ["silicificacion", "Silicificación",            "mod-silice"],
+  ["nodulos",        "Nódulos / concreciones",    "mod-nodulos"],
+  ["materia_org",    "Materia orgánica / carbón", "mod-carbon"],
+];
 
 // Backward-compat aliases for older CSV files
-const LITHO_ALIAS = { tuff: "ash_tuff", volcanic_breccia: "volc_breccia" };
+const LITHO_ALIAS = {
+  tuff: "toba_ceniza", ash_tuff: "toba_ceniza", lapilli_tuff: "toba_lapilli",
+  block_tuff: "brecha_pirocl", ignimbrite: "toba_ceniza",
+  agglomerate: "aglomerado", volc_breccia: "brecha_pirocl",
+  volcanic_breccia: "brecha_pirocl",
+  // retirados en v4.3: la estructura se registra en el campo structSymbols
+  xbedded_sand: "sandstone", ripple_sand: "sandstone",
+};
 
 // ═══════════════════════════════════════════════════════════════
 // GRAIN SIZE  [id, label, widthRatio]
@@ -528,30 +612,76 @@ const MUNSELL = [
 ];
 
 const CONTACTS = [
-  ["sharp",        "Neto concordante"   ],
-  ["gradational",  "Gradacional"        ],
-  ["erosive",      "Erosivo"            ],
-  ["unconformity", "Discordancia angular"],
+  ["sharp",       "Neto concordante"],
+  ["gradational", "Gradacional"     ],
+  ["erosive",     "Erosivo"         ],
 ];
+// Retrocompat: mapea valores viejos de contactBottom a IDs actuales
+const CONTACT_ALIAS = { "unconformity": "erosive", "angular_unconformity": "erosive" };
 
-const ENVS = [
-  "Fluvial – canal braided",
-  "Fluvial – canal meandroso",
-  "Fluvial – planicie inundación",
-  "Deltaico","Estuarino",
-  "Litoral / shoreface","Marino somero (plataforma)","Marino profundo",
-  "Turbidítico","Lacustre","Abanico aluvial","Eólico",
-  "Glacial / periglacial","Carbonático arrecifal","Evaporítico",
-  "Volcánico subaéreo","Volcánico submarino",
+const ENV_GROUPS = [
+  { label: "Fluvial / continental", envs: [
+    "Fluvial – canal braided",
+    "Fluvial – canal meandroso",
+    "Fluvial – planicie inundación",
+    "Fluvial – planicie mareal",
+    "Abanico aluvial",
+    "Lacustre",
+    "Eólico",
+    "Glacial / periglacial",
+    "Pedogénico / paleosuelo",
+  ]},
+  { label: "Transicional", envs: [
+    "Deltaico – canal distributario",
+    "Deltaico – prodelta / plataforma deltaica",
+    "Estuarino",
+    "Laguna costera",
+    "Litoral / shoreface",
+  ]},
+  { label: "Marino siliciclástico", envs: [
+    "Marino somero (plataforma)",
+    "Turbidítico",
+    "Abanico submarino",
+    "Marino profundo / pelágico",
+  ]},
+  { label: "Carbonático", envs: [
+    "Carbonático – lagoon / planicie mareal",
+    "Carbonático arrecifal",
+    "Carbonático – plataforma",
+  ]},
+  { label: "Especial", envs: [
+    "Evaporítico",
+    "Volcánico subaéreo",
+    "Volcánico submarino",
+  ]},
 ];
+const ENVS = ENV_GROUPS.flatMap(g => g.envs);
+const LEGACY_ENV_ALIAS = {
+  "Deltaico":                        "Deltaico – canal distributario",
+  "Marino profundo":                 "Marino profundo / pelágico",
+  "Marino somero":                   "Marino somero (plataforma)",
+  "Carbonático arrecifal":           "Carbonático arrecifal",
+};
 
 const WEATH = [
   "fresco","ligeramente alterado","moderadamente alterado",
   "muy alterado","completamente alterado",
 ];
 
+// Normaliza un lithoId aplicando aliases de versiones anteriores.
+// Usar en TODA ruta de entrada de datos (CSV y .col.json).
+const normalizeLithoId = id => {
+  const k = String(id || "").trim();
+  return LITHO_ALIAS[k] || k;
+};
 const findL = id => LITH.find(l => l[0] === id) ?? LITH[2];
 const findG = id => GRAIN.find(g => g[0] === id) ?? GRAIN[4];
+
+// Tabs del panel de edición (orden = orden visual, izquierda a derecha)
+const PANEL_TABS = [
+  ["meta", "⌖ Ubicación"], ["units", "✚ Unidades"],
+  ["thickness", "📐 Espesor"], ["samples", "🧪 Muestras"],
+];
 
 // Calcula espesor real Badgley/Ragan a partir de los campos de una unidad.
 // Devuelve null si faltan datos.
@@ -569,31 +699,118 @@ function unitGeometry(u) {
 // SEDIMENTARY STRUCTURES — librería de símbolos  [id, label, group]
 // ═══════════════════════════════════════════════════════════════
 const STRUCTS = [
-  ["planar_lam",     "Laminación paralela",       "Laminación / estratificación"],
-  ["cross_bed",      "Estratificación cruzada",   "Laminación / estratificación"],
-  ["trough_xbed",    "Estrat. cruzada en artesa", "Laminación / estratificación"],
-  ["convolute",      "Laminación convoluta",      "Laminación / estratificación"],
-  ["current_ripple", "Ondulitas de corriente",    "Ondulitas"],
-  ["wave_ripple",    "Ondulitas de oleaje",       "Ondulitas"],
-  ["climbing_ripple","Ripples escalantes",        "Ondulitas"],
-  ["graded_normal",  "Gradación normal",          "Gradación"],
-  ["graded_reverse", "Gradación inversa",         "Gradación"],
-  ["load_cast",      "Calcos de carga",           "Base / erosión"],
-  ["flute_cast",     "Calcos de flujo (flute)",   "Base / erosión"],
-  ["scour",          "Base erosiva / scour",      "Base / erosión"],
-  ["mudcrack",       "Grietas de desecación",     "Deformación / exposición"],
-  ["slump",          "Slump / pliegue sinsed.",   "Deformación / exposición"],
-  ["flaser",         "Estratificación flaser",    "Heterolítica"],
-  ["lenticular",     "Estratificación lenticular","Heterolítica"],
-  ["bioturbation",   "Bioturbación",              "Biogénicas"],
-  ["vert_burrow",    "Galerías verticales",       "Biogénicas"],
-  ["u_burrow",       "Galería en U",              "Biogénicas"],
-  ["rootlets",       "Raíces / rizolitos",        "Biogénicas"],
-  ["bioclasts",      "Bioclastos / conchillas",   "Biogénicas"],
-  ["nodules",        "Nódulos / concreciones",    "Diagénesis"],
+  // ── Estratificación interna ──
+  ["planar_lam",     "Laminación paralela",              "Estratificación"],
+  ["parting_lin",    "Lineación de partición",            "Estratificación"],
+  ["cross_bed",      "Est. cruzada planar (tabular)",     "Estratificación"],
+  ["trough_xbed",    "Est. cruzada en artesa (trough)",   "Estratificación"],
+  ["herringbone",    "Est. cruzada espiga (herringbone)", "Estratificación"],
+  ["hcs",            "HCS – Hummocky cross-strat.",       "Estratificación"],
+  ["massive",        "Capa masiva (sin estructura)",      "Estratificación"],
+  // ── Ondulitas ──
+  ["current_ripple", "Ondulitas de corriente",            "Ondulitas"],
+  ["wave_ripple",    "Ondulitas de oleaje",               "Ondulitas"],
+  ["climbing_ripple","Ripples escalantes (climbing)",     "Ondulitas"],
+  // ── Heterolítica ──
+  ["flaser",         "Estratificación flaser",            "Heterolítica"],
+  ["wavy_bed",       "Estratificación ondulada (wavy)",   "Heterolítica"],
+  ["lenticular",     "Estratificación lenticular",        "Heterolítica"],
+  // ── Gradación ──
+  ["graded_normal",  "Gradación normal",                  "Gradación"],
+  ["graded_reverse", "Gradación inversa",                 "Gradación"],
+  // ── Sole / base ──
+  ["flute_cast",     "Calcos de flujo (flute)",           "Sole / base"],
+  ["groove_cast",    "Calcos de surco (groove)",          "Sole / base"],
+  ["load_cast",      "Calcos de carga (load)",            "Sole / base"],
+  ["scour",          "Base erosiva / scour",              "Sole / base"],
+  ["channel",        "Canal (geometría erosiva)",         "Sole / base"],
+  // ── Deformación sinsedimentaria ──
+  ["convolute",      "Laminación convoluta",              "Deformación sinsed."],
+  ["slump",          "Slump / pliegue sinsed.",           "Deformación sinsed."],
+  ["flame",          "Estructuras de llama (flame)",      "Deformación sinsed."],
+  ["dish_pillar",    "Dish-and-pillar (dewatering)",      "Deformación sinsed."],
+  // ── Exposición / diagénesis ──
+  ["mudcrack",       "Grietas de desecación",             "Exposición / diagénesis"],
+  ["syneresis",      "Grietas de sineresis",              "Exposición / diagénesis"],
+  ["nodules",        "Nódulos / concreciones",            "Exposición / diagénesis"],
+  // ── Biogénicas ──
+  ["bioturbation",   "Bioturbación general",              "Biogénicas"],
+  ["vert_burrow",    "Galerías verticales (Skolithos)",   "Biogénicas"],
+  ["u_burrow",       "Galería en U (Diplocraterion)",     "Biogénicas"],
+  ["rootlets",       "Raíces / rizolitos",                "Biogénicas"],
+  ["bioclasts",      "Bioclastos / conchillas",           "Biogénicas"],
+  // ── Carbonáticas ──
+  ["stromatolite",   "Estromatolitos",                    "Carbonáticas"],
+  ["tepee",          "Tepees (carbonático)",               "Carbonáticas"],
+  ["hardground",     "Hardground / fondo endurecido",     "Carbonáticas"],
 ];
 const STRUCT_GROUPS = [...new Set(STRUCTS.map(s => s[2]))];
 const findS = id => STRUCTS.find(s => s[0] === id);
+
+// ═══════════════════════════════════════════════════════════════
+// ICHNOFOSSILS — trazas fósiles e icnofacies  [id, label, group]
+// Tucker (2003) §5.6; icnofacies de Seilacher
+// ═══════════════════════════════════════════════════════════════
+const ICHNO_TYPES = [
+  // ── Ichnofacies Skolithos (alta energía, somero-intermareale) ──
+  ["skolithos",      "Skolithos",           "Skolithos"],
+  ["ophiomorpha",    "Ophiomorpha",         "Skolithos"],
+  ["arenicolites",   "Arenicolites",        "Skolithos"],
+  ["diplocraterion", "Diplocraterion",      "Skolithos"],
+  // ── Ichnofacies Cruziana (moderada, shoreface–plataforma) ──
+  ["cruziana",       "Cruziana",            "Cruziana"],
+  ["rusophycus",     "Rusophycus",          "Cruziana"],
+  ["rhizocorallium", "Rhizocorallium",      "Cruziana"],
+  ["asteriacites",   "Asteriacites",        "Cruziana"],
+  // ── Ichnofacies Zoophycos (baja energía, plataforma–talud) ──
+  ["zoophycos",      "Zoophycos",           "Zoophycos"],
+  ["chondrites",     "Chondrites",          "Zoophycos"],
+  ["planolites",     "Planolites",          "Zoophycos"],
+  // ── Ichnofacies Nereites (cuenca profunda) ──
+  ["nereites",       "Nereites",            "Nereites"],
+  ["paleodictyon",   "Paleodictyon",        "Nereites"],
+  ["cosmorhaphe",    "Cosmorhaphe",         "Nereites"],
+  // ── Otros icnofósiles comunes ──
+  ["thalassinoides", "Thalassinoides",      "Otros"],
+  ["terebellina",    "Terebellina",         "Otros"],
+];
+
+const ICHNO_GROUPS = [...new Set(ICHNO_TYPES.map(t => t[2]))];
+const findI = id => ICHNO_TYPES.find(t => t[0] === id);
+
+function ichnoGlyphEls(id, k = "ig") {
+  const S = "#2A1F12", W = 1.3;
+  const ln = (x1,y1,x2,y2,w=W) => <line key={`${k}l${x1}${y1}${x2}${y2}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={S} strokeWidth={w} strokeLinecap="round"/>;
+  const pa = (d,w=W) => <path key={`${k}p${d}`} d={d} stroke={S} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round"/>;
+  const ci = (cx,cy,r) => <circle key={`${k}c${cx}${cy}`} cx={cx} cy={cy} r={r} fill={S}/>;
+  switch (id) {
+    case "skolithos":      return [ln(0,-10,0,10,2)];
+    case "ophiomorpha":    return [pa("M0,-10 L0,4 Q0,10 -5,10",2),pa("M-8,2 L0,2",0.9),pa("M-8,6 L-2,6",0.9)];
+    case "arenicolites":   return [pa("M-7,-8 L-7,5 Q-7,10 0,10 Q7,10 7,5 L7,-8")];
+    case "diplocraterion": return [pa("M-7,-8 L-7,5 Q-7,10 0,10 Q7,10 7,5 L7,-8"),ln(-6,0,6,0,0.7),ln(-5,-3,5,-3,0.7),ln(-4,-6,4,-6,0.7)];
+    case "cruziana":       return [pa("M-10,0 C-8,-6 8,-6 10,0 C8,6 -8,6 -10,0 Z"),pa("M-7,-2 L-3,0 L-7,2",0.7),pa("M0,-2 L4,0 L0,2",0.7),pa("M7,-2 L10,0 L7,2",0.7)];
+    case "rusophycus":     return [pa("M-8,-4 Q0,-8 8,-4 L8,4 Q0,8 -8,4 Z"),pa("M-4,-1 L4,-1",0.7),pa("M-4,2 L4,2",0.7)];
+    case "rhizocorallium": return [pa("M-11,-3 L11,-3"),pa("M-11,4 L11,4"),pa("M-11,-3 Q-11,0.5 -11,4"),pa("M11,-3 Q11,0.5 11,4"),ln(-7,-1,7,-1,0.6),ln(-6,1,6,1,0.6)];
+    case "asteriacites":   return [pa("M0,-10 L0,0"),pa("M0,0 L9.5,3"),pa("M0,0 L5.9,8"),pa("M0,0 L-5.9,8"),pa("M0,0 L-9.5,3")];
+    case "zoophycos":      return [pa("M0,0 C3,-6 9,-4 9,0 C9,6 3,9 0,5 C-4,1 -3,-9 3,-9 C9,-9 11,-2 8,4")];
+    case "chondrites":     return [pa("M0,9 L0,2"),pa("M0,2 L-5,-3"),pa("M0,2 L5,-3"),pa("M-5,-3 L-8,-8",0.9),pa("M-5,-3 L-2,-8",0.9),pa("M5,-3 L2,-8",0.9),pa("M5,-3 L8,-8",0.9)];
+    case "planolites":     return [pa("M-10,0 Q-5,6 0,0 Q5,-6 10,0")];
+    case "nereites":       return [pa("M-10,4 Q-7,-3 -4,4 Q-1,-3 2,4 Q5,-3 8,4"),ci(-7,0.5,1.4),ci(-1,0.5,1.4),ci(5,0.5,1.4)];
+    case "paleodictyon":   return [pa("M-9,-5 L0,-10 L9,-5 L9,5 L0,10 L-9,5 Z"),pa("M-9,-5 L9,5"),pa("M9,-5 L-9,5"),pa("M0,-10 L0,10")];
+    case "cosmorhaphe":    return [pa("M-10,0 C-8,-7 -2,-7 0,0 C2,7 8,7 10,0 C8,-7 2,-7 0,0 C-2,7 -8,7 -10,0")];
+    case "thalassinoides": return [pa("M0,-9 L0,0"),pa("M0,0 L-7,7"),pa("M0,0 L7,7"),ci(0,-9,1.5),ci(-7,7,1.5),ci(7,7,1.5)];
+    case "terebellina":    return [pa("M0,-10 C6,-10 10,-5 10,0 C10,6 5,10 0,10 C-5,10 -10,6 -10,0 C-10,-5 -6,-10 0,-10"),ln(-10,0,10,0,0.6)];
+    default:               return [ci(0,0,2)];
+  }
+}
+
+function IchnoIcon({ id, size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="-14 -14 28 28" style={{ display: "block" }}>
+      {ichnoGlyphEls(id, id)}
+    </svg>
+  );
+}
 
 // Glifo dibujado en una caja [-12,12]. Devuelve un array de elementos SVG.
 function glyphEls(id, k = "g") {
@@ -610,14 +827,15 @@ function glyphEls(id, k = "g") {
     case "current_ripple": return [pa("M-11,4 L-5,-5 L-1,4 L5,-5 L9,4"),ln(-11,7,9,7,1)];
     case "wave_ripple":    return [pa("M-11,3 Q-7,-6 -3,3 Q1,-6 5,3 Q9,-6 11,3")];
     case "climbing_ripple":return [pa("M-10,7 l4,-7 l4,7"),pa("M-2,3 l4,-7 l4,7"),pa("M6,-1 l4,-7")];
-    case "graded_normal":  return [pa("M-8,-8 L8,-8 L0,8 Z")];
-    case "graded_reverse": return [pa("M0,-8 L8,8 L-8,8 Z")];
+    case "graded_normal":  return [pa("M-8,8 L8,8 L0,-8 Z")];   // base gruesa abajo, vértice arriba
+    case "graded_reverse": return [pa("M0,8 L8,-8 L-8,-8 Z")]; // base gruesa arriba, vértice abajo
     case "load_cast":      return [ln(-10,-4,10,-4),pa("M-9,-4 Q-9,7 -4,7 Q1,7 1,-4"),pa("M1,-4 Q1,8 6,8 Q10,8 10,-4")];
     case "flute_cast":     return [pa("M-9,-3 Q-9,6 -4,6 Q0,6 -1,-3"),pa("M2,-3 Q2,7 7,6 Q10,5 9,-3")];
     case "scour":          return [pa("M-11,-4 Q-7,4 -3,-4 Q1,4 5,-4 Q9,4 11,-4")];
+    case "channel":        return [pa("M-11,-4 Q-11,8 0,8 Q11,8 11,-4",1.6),ln(-8,2,8,2,0.7)];
     case "mudcrack":       return [ln(0,-9,0,9),pa("M0,-3 l-6,5"),pa("M0,2 l6,4"),pa("M0,0 l-6,-4")];
     case "slump":          return [pa("M-9,6 C-3,6 -6,-6 0,-6 C6,-6 3,6 9,6")];
-    case "flaser":         return [pa("M-11,4 Q-7,-3 -3,4 Q1,-3 5,4 Q9,-3 11,4"),el(-5,1,2.4,1),el(4,1,2.4,1)];
+    case "flaser":         return [ln(-11,6,11,6,1),pa("M-11,6 Q-7,-1 -3,6 Q1,-1 5,6 Q9,-1 11,6"),el(-4,-1,3,1.5),el(5,0,2.5,1.5)];
     case "lenticular":     return [el(-5,-3,5,2),el(4,4,5,2)];
     case "bioturbation":   return [pa("M-6,-9 C-9,-4 -3,-2 -6,3 C-9,7 -3,8 -6,9"),pa("M5,-9 C2,-4 8,-2 5,3 C2,7 8,8 5,9")];
     case "vert_burrow":    return [pa("M-5,-9 L-5,5 Q-5,9 -2,9"),pa("M5,-9 L5,5 Q5,9 2,9")];
@@ -625,6 +843,18 @@ function glyphEls(id, k = "g") {
     case "rootlets":       return [ln(0,-9,0,9),pa("M0,-2 l-5,4"),pa("M0,2 l5,4"),pa("M0,5 l-4,4")];
     case "bioclasts":      return [pa("M-9,2 Q-4,-9 5,-3 Q9,-1 7,3"),pa("M-9,2 Q-2,5 7,3",1)];
     case "nodules":        return [ci(-4,-2,3.4),ci(5,3,2.6)];
+    case "parting_lin":   return [ln(-9,-5,9,-5,1),ln(-7,-2,7,-2,1),ln(-9,1,9,1,1),ln(-7,4,7,4,1)];
+    case "herringbone":   return [pa("M-10,8 L0,-2 L10,8",1.4), pa("M-10,-2 L0,8 L10,-2",1.4)];
+    case "hcs":           return [pa("M-11,4 Q-7,-5 -3,4 Q1,-5 5,4 Q9,-5 11,4"),pa("M-11,-2 Q-7,7 -3,-2 Q1,7 5,-2 Q9,7 11,-2")];
+    case "massive":       return [pa("M-9,-8 L9,-8 L9,8 L-9,8 Z",1),ci(0,0,1.2)];
+    case "wavy_bed":      return [pa("M-11,5 Q-7,-1 -3,5 Q1,-1 5,5 Q9,-1 11,5"),ln(-11,1,11,1,0.8),pa("M-11,-3 Q-7,3 -3,-3 Q1,3 5,-3 Q9,3 11,-3")];
+    case "groove_cast":   return [ln(-10,-5,10,-5),ln(-10,-1,10,-1),ln(-10,3,10,3),ln(-10,7,10,7)];
+    case "flame":         return [pa("M-5,9 C-7,2 -2,-4 0,-9 C2,-4 7,2 5,9"),pa("M-3,9 C-4,4 -1,0 0,-5"),ln(-9,9,9,9,1.2)];
+    case "dish_pillar":   return [pa("M-9,2 Q-5,8 0,2 Q5,8 9,2"),ln(0,-8,0,2,1.4)];
+    case "syneresis":     return [pa("M-8,-3 l3,3 l-4,5"),pa("M0,-5 l2,6 l-3,4"),pa("M6,-2 l-2,4 l3,4")];
+    case "stromatolite":  return [pa("M-9,8 Q-9,-2 0,-8 Q9,-2 9,8"),pa("M-6,8 Q-6,0 0,-5 Q6,0 6,8"),ln(-9,8,9,8,1)];
+    case "tepee":         return [pa("M-10,6 L0,-8 L10,6"),pa("M-6,6 L0,-3 L6,6"),ln(-10,6,10,6,1.2)];
+    case "hardground":    return [ln(-9,-6,9,-6,2),ci(-6,-2,2),ci(0,-2,2),ci(6,-2,2),ln(-9,4,9,4,0.8)];
     default:               return [ci(0,0,2)];
   }
 }
@@ -689,47 +919,50 @@ function bandsOf(units, cumH, field) {
 // ═══════════════════════════════════════════════════════════════
 // CONTACT GEOMETRY
 // ═══════════════════════════════════════════════════════════════
-const ERO_DY = [-3, 5, -4, 2, -6, 3, -5, 4, -3, 6];
+// Gradacional: línea recta punteada (dasharray en render)
+// Erosivo: línea irregular ondulada nítida
+const ERO_DY = [-4, 5, -5, 3, -6, 4, -5, 5, -4, 6];
 function cPath(type, x1, x2, y) {
-  if (type === "sharp") return `M${x1},${y}L${x2},${y}`;
-  if (type === "gradational") {
-    const n = 8, s = (x2 - x1) / n; let d = `M${x1},${y}`;
-    for (let i = 0; i < n; i++) {
-      const dy = i % 2 === 0 ? 3 : -3;
-      d += ` C${x1+i*s+s*.3},${y+dy} ${x1+i*s+s*.7},${y+dy} ${x1+(i+1)*s},${y}`;
-    }
-    return d;
-  }
+  if (type === "gradational") return `M${x1},${y}L${x2},${y}`;
   if (type === "erosive") {
     const n = 10, s = (x2 - x1) / n; let d = `M${x1},${y}`;
     for (let i = 0; i < n; i++)
-      d += ` L${x1+i*s+s*.5},${y+ERO_DY[i]} L${x1+(i+1)*s},${y}`;
+      d += ` C${x1+i*s+s*.3},${y+ERO_DY[i]} ${x1+i*s+s*.7},${y+ERO_DY[i]} ${x1+(i+1)*s},${y}`;
     return d;
   }
-  const n = 8, s = (x2 - x1) / n; let d = `M${x1},${y}`;
-  for (let i = 0; i < n; i++)
-    d += ` L${x1+i*s+s*.5},${y+(i%2===0?-7:7)} L${x1+(i+1)*s},${y}`;
-  return d;
+  return `M${x1},${y}L${x2},${y}`;
 }
-const cClr = t => t==="unconformity" ? T.danger : t==="erosive" ? T.rust : T.ink;
-const cWid = t => (t==="unconformity"||t==="erosive") ? 2 : 1.3;
+const cClr = t => t==="erosive" ? T.rust : T.ink;
+const cWid = t => t==="erosive" ? 2 : 1.3;
+const cDash = t => t==="gradational" ? "5,4" : "none";
 
 // ═══════════════════════════════════════════════════════════════
 // CSV UTILITIES
 // ═══════════════════════════════════════════════════════════════
 const CSV_HEADERS = ["thickness","lithology","lithology2","lithoRatio","color","grainSize","structures",
   "structSymbols","fossilsDating","contactBottom","environment","paleocurrent","weathering","notes",
-  "age","formation","rumbo","manteo","dirBuz","azTraza","dh","deltaH","signChoice"];
+  "age","formation","rumbo","manteo","dirBuz","azTraza","dh","deltaH","signChoice",
+  "thicknessMode","interpLi1MinCm","interpLi1MaxCm","interpLi2MinCm","interpLi2MaxCm","beddingTrend",
+  "modTechoType","modTechoCm","modTechoNotes","modMuroType","modMuroCm","modMuroNotes",
+  "bioturbIndex","traceIchnos"];
+
+// Bloque de referencia (líneas "#", ignoradas al importar) con todos los códigos
+// de litología aceptados en "lithology" / "lithology2", agrupados como en el picker.
+const LITH_REFERENCE_BLOCK = "# ── CÓDIGOS DE LITOLOGÍA VÁLIDOS para lithology / lithology2 (usar el código, no el nombre) ──\n"
+  + LITH_GROUPS.map(g => `# ${g}:\n`
+      + LITH_BY_GROUP.get(g).map(l => `#   ${l[0]} = ${l[1]}`).join("\n")
+    ).join("\n");
 
 const CSV_TEMPLATE = `thickness,lithology,lithology2,lithoRatio,color,grainSize,structures,fossilsDating,contactBottom,environment,paleocurrent,weathering,notes
 3.50,andesite,,,"5GY 4/1 gris verdoso oscuro",coherent,"Disyunción columnar, vesículas",,sharp,Volcánico subaéreo,,ligeramente alterado,Colada de lava basal
 1.80,autobreccia,,,"5YR 4/2 gris rojizo",cobble,"Fragmentos angulosos monomícticos de lava",,gradational,Volcánico subaéreo,,moderadamente alterado,Autobrecha de techo de colada
-20.00,lapilli_tuff,lapillite,0.6,"5YR 5/3 marrón rojizo",granule,"Intercalación rítmica, gradaciones normales por evento",,sharp,Volcánico subaéreo,,fresco,Paquete intercalado toba-lapillita (60/40)
-0.90,ash_tuff,,,"N7 gris claro",silt,"Laminación fina, masiva",,gradational,Volcánico subaéreo,,fresco,Toba de ceniza fina
-4.10,ignimbrite,,,"5YR 5/2 marrón rojizo pálido",fs,"Fiamme, soldamiento, juntas de enfriamiento",,erosive,Volcánico subaéreo,,ligeramente alterado,Ignimbrita soldada — flujo piroclástico
+20.00,toba_lapilli,lapillite,0.6,"5YR 5/3 marrón rojizo",granule,"Intercalación rítmica, gradaciones normales por evento",,sharp,Volcánico subaéreo,,fresco,Paquete intercalado toba-lapillita (60/40)
+0.90,toba_ceniza,,,"N7 gris claro",silt,"Laminación fina, masiva",,gradational,Volcánico subaéreo,,fresco,Toba de ceniza fina
+4.10,toba_ceniza,,,"5YR 5/2 marrón rojizo pálido",fs,"Fiamme, soldamiento, juntas de enfriamiento",,erosive,Volcánico subaéreo,,ligeramente alterado,Ignimbrita soldada — flujo piroclástico
 1.40,tuffite,,,"5Y 6/2 gris oliva",fs,"Estratificación, mezcla piroclástica-epiclástica","Restos vegetales",gradational,Lacustre,SE 120°,fresco,Retrabajo en ambiente lacustre
 2.60,epiclastic,sandstone,0.7,"10YR 5/3 marrón",ms,"Est. cruzada, clastos volcánicos redondeados",,erosive,Fluvial – canal braided,NE 050°,fresco,Volcaniclástica retrabajada con interestratificación arenosa
-1.20,block_tuff,,,"5YR 4/3 marrón rojizo",cobble,"Bloques y bombas, soporte matriz",,unconformity,Volcánico subaéreo,,moderadamente alterado,Depósito proximal — discordancia
+1.20,block_tuff,,,"5YR 4/3 marrón rojizo",cobble,"Bloques y bombas, soporte matriz",,erosive,Volcánico subaéreo,,moderadamente alterado,Depósito proximal
+${LITH_REFERENCE_BLOCK}
 `;
 
 const META_KEYS = ["project","locality","author","date","datum","utmZone","utmHemi",
@@ -788,6 +1021,15 @@ function generateCsv(units, meta, samples) {
       age: u.age, formation: u.formation,
       rumbo: u.rumbo, manteo: u.manteo, dirBuz: u.dirBuz, azTraza: u.azTraza,
       dh: u.dh, deltaH: u.deltaH, signChoice: u.signChoice,
+      thicknessMode: u.thicknessMode,
+      interpLi1MinCm: u.interpLi1MinCm, interpLi1MaxCm: u.interpLi1MaxCm,
+      interpLi2MinCm: u.interpLi2MinCm, interpLi2MaxCm: u.interpLi2MaxCm,
+      beddingTrend: u.beddingTrend || "",
+      modTechoType:  u.modTecho?.type  || "", modTechoCm:    u.modTecho?.cm    || "",
+      modTechoNotes: u.modTecho?.notes || "", modMuroType:   u.modMuro?.type   || "",
+      modMuroCm:     u.modMuro?.cm     || "", modMuroNotes:  u.modMuro?.notes  || "",
+      bioturbIndex:  u.bioturbIndex != null ? u.bioturbIndex : "",
+      traceIchnos:   (u.traceIchnos || []).join(";"),
     };
     return esc(map[h]);
   }).join(","));
@@ -798,19 +1040,30 @@ function generateCsv(units, meta, samples) {
     .forEach(k => head.push(`#${k}=${String(meta[k]).replace(/[\r\n]+/g, " / ")}`));
   if (Array.isArray(samples)) samples
     .filter(s => s && s.code)
-    .forEach(s => head.push(`#sample=${s.height}|${String(s.code).replace(/[|\r\n]/g, " ")}|${s.type || "otra"}`));
+    .forEach(s => head.push(`#sample=${s.height}|${String(s.code).replace(/[|\r\n]/g, " ")}|${s.type || "otra"}|${s.utmE || ""}|${s.utmN || ""}`));
   return head.length ? head.join("\n") + "\n" + body : body;
 }
+const VALID_MOD_IDS = new Set(MOD_TYPES.map(m => m[0]));
+function parseMod(type, cm, notes, unitThicknessM) {
+  if (!type || !VALID_MOD_IDS.has(type)) return null;
+  const maxCm = Math.floor(unitThicknessM * 100);
+  const cmVal = Math.min(Math.max(1, parseFloat(cm) || 1), maxCm);
+  return { type, cm: cmVal, notes: (notes || "").slice(0, 120) };
+}
+
 function parseCsvSamples(text) {
   const valid = new Set(SAMPLE_TYPES.map(t => t[0]));
   const out = [];
   text.replace(/^﻿/, "").split(/\r?\n/).forEach(line => {
     const mt = line.match(/^\s*#\s*sample\s*=\s*(.*)$/);
     if (!mt) return;
-    const [h, code, type] = mt[1].split("|");
-    if (code && code.trim())
-      out.push({ height: parseFloat(h) || 0, code: code.trim(),
-        type: valid.has((type || "").trim()) ? type.trim() : "otra" });
+    const [h, code, type, utmE, utmN] = mt[1].split("|");
+    if (code && code.trim()) {
+      const s = { height: parseFloat(h) || 0, code: code.trim(),
+        type: valid.has((type || "").trim()) ? type.trim() : "otra" };
+      if ((utmE || "").trim() && (utmN || "").trim()) { s.utmE = utmE.trim(); s.utmN = utmN.trim(); }
+      out.push(s);
+    }
   });
   return out;
 }
@@ -894,9 +1147,9 @@ function latLonToUtm(lat, lon, forceZone, forceSouth) {
 // manteo : dip δ del estrato (0-90°)
 // azTraza: azimut de la traza/recorrido (0-360°)
 // dh     : largo de la traza en planta (m, horizontal)
-// deltaH : desnivel topográfico (+ asciende, − desciende a lo largo de la traza)
-// signChoice: "neg" cuando la traza asciende en el MISMO sentido del buzamiento,
-//             "pos" cuando asciende en sentido CONTRARIO al buzamiento.
+// deltaH : desnivel topográfico en valor absoluto (siempre positivo, en metros)
+// signChoice: "neg" pendiente cae en el MISMO sentido del buzamiento (resta)
+//             "pos" pendiente cae en sentido CONTRARIO al buzamiento (suma)
 //
 // Devuelve { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo } o null.
 function normAz(a) { return ((a % 360) + 360) % 360; }
@@ -939,10 +1192,9 @@ function realThicknessBadgley({ rumboAz, dirBuz, manteo, azTraza, dh, deltaH, si
   const cosG = Math.abs(Math.cos(gamma * Math.PI/180));
   const termPlani = d * sinδ * cosG;
   const termTopo  = Math.abs(Δh) * cosδ;
-  const sgnDh = Δh >= 0 ? 1 : -1;
   const espesor = signChoice === "pos"
-    ? termPlani + sgnDh * termTopo
-    : termPlani - sgnDh * termTopo;
+    ? termPlani + termTopo
+    : termPlani - termTopo;
   const manteoAparente = Math.atan(Math.tan(δ * Math.PI/180) * cosG) * 180/Math.PI;
   return { espesor, azBuz, gamma, manteoAparente, termPlani, termTopo, cosG };
 }
@@ -1149,6 +1401,12 @@ function SvgDefs({ totalH, spx }) {
       <clipPath id="colclip2">
         <rect x={STX} y={MT} width={STW} height={totalH * SPX} />
       </clipPath>
+      <clipPath id="biclip">
+        <rect x={BTX} y={MT} width={BTW} height={totalH * SPX} />
+      </clipPath>
+      <clipPath id="ichnoclip">
+        <rect x={ITX} y={MT} width={ITW} height={totalH * SPX} />
+      </clipPath>
       <clipPath id="sampclip">
         <rect x={SX} y={MT} width={SAW} height={totalH * SPX} />
       </clipPath>
@@ -1181,15 +1439,21 @@ function SvgDefs({ totalH, spx }) {
         <circle cx="0" cy="6" r=".9" fill="#A87820"/>
         <circle cx="6" cy="6" r=".9" fill="#A87820"/>
       </pattern>
-      <pattern id="p-xsand" width="16" height="10" patternUnits="userSpaceOnUse">
-        <rect width="16" height="10" fill="#E8C050"/>
-        <line x1="0" y1="10" x2="16" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
-        <line x1="-8" y1="10" x2="8" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
-        <line x1="8" y1="10" x2="24" y2="0" stroke="#8E6210" strokeWidth="1.1"/>
+
+      {/* FGDC 613 — Calcareous sandstone: stipple + brick elements */}
+      <pattern id="p-calcsand" width="18" height="12" patternUnits="userSpaceOnUse">
+        <rect width="18" height="12" fill="#E8D490"/>
+        <circle cx="3" cy="3" r=".7" fill="#A08020"/><circle cx="10" cy="2" r=".6" fill="#A08020"/>
+        <circle cx="6" cy="7" r=".7" fill="#A08020"/><circle cx="14" cy="8" r=".6" fill="#A08020"/>
+        <circle cx="16" cy="4" r=".5" fill="#A08020"/><circle cx="1" cy="10" r=".5" fill="#A08020"/>
+        <rect x="7" y="9" width="7" height="3" fill="none" stroke="#7A6840" strokeWidth=".6"/>
       </pattern>
-      <pattern id="p-rsand" width="20" height="8" patternUnits="userSpaceOnUse">
-        <rect width="20" height="8" fill="#EDCA70"/>
-        <path d="M0,4 Q5,2 10,4 Q15,6 20,4" fill="none" stroke="#8E6210" strokeWidth="1"/>
+      {/* FGDC 654 — Greywacke/subgraywacke: coarse stipple, dark */}
+      <pattern id="p-greyw" width="12" height="10" patternUnits="userSpaceOnUse">
+        <rect width="12" height="10" fill="#A09478"/>
+        <circle cx="3" cy="3" r="1.1" fill="#786844"/><circle cx="9" cy="7" r="1.2" fill="#786844"/>
+        <circle cx="7" cy="2" r=".8" fill="#8A7A56"/><circle cx="1" cy="8" r=".9" fill="#8A7A56"/>
+        <circle cx="11" cy="3" r=".7" fill="#8A7A56"/>
       </pattern>
       <pattern id="p-silt" width="10" height="5" patternUnits="userSpaceOnUse">
         <rect width="10" height="5" fill="#C8B48A"/>
@@ -1212,14 +1476,18 @@ function SvgDefs({ totalH, spx }) {
         <ellipse cx="7" cy="6" rx="5" ry="3.5" fill="none" stroke="#356296" strokeWidth=".8"/>
         <ellipse cx="16" cy="13" rx="5.5" ry="3.5" fill="none" stroke="#356296" strokeWidth=".8"/>
       </pattern>
-      <pattern id="p-dolo" width="14" height="14" patternUnits="userSpaceOnUse">
-        <rect width="14" height="14" fill="#D8C8B0"/>
-        <path d="M7,1 L13,7 L7,13 L1,7 Z" fill="none" stroke="#7A5E36" strokeWidth="1"/>
+      <pattern id="p-dolo" width="18" height="12" patternUnits="userSpaceOnUse">
+        <rect width="18" height="12" fill="#D8C8B0"/>
+        <rect x=".5" y=".5" width="15" height="5" fill="none" stroke="#7A5E36" strokeWidth=".7"/>
+        <rect x="9" y="6" width="15" height="5" fill="none" stroke="#7A5E36" strokeWidth=".7"/>
+        <line x1="2" y1="0" x2="6" y2="6" stroke="#7A5E36" strokeWidth=".6"/>
+        <line x1="10" y1="6" x2="14" y2="12" stroke="#7A5E36" strokeWidth=".6"/>
       </pattern>
-      <pattern id="p-chert" width="10" height="10" patternUnits="userSpaceOnUse">
-        <rect width="10" height="10" fill="#909090"/>
-        <line x1="0" y1="5" x2="10" y2="5" stroke="#4A4A4A" strokeWidth="1"/>
-        <line x1="5" y1="0" x2="5" y2="10" stroke="#4A4A4A" strokeWidth="1"/>
+      <pattern id="p-chert" width="12" height="10" patternUnits="userSpaceOnUse">
+        <rect width="12" height="10" fill="#909090"/>
+        <line x1="0" y1="5" x2="12" y2="5" stroke="#4A4A4A" strokeWidth=".7"/>
+        <path d="M3,3 l1.5,-2.5 l1.5,2.5" fill="none" stroke="#4A4A4A" strokeWidth=".8"/>
+        <path d="M9,8 l1.5,-2.5 l1.5,2.5" fill="none" stroke="#4A4A4A" strokeWidth=".8"/>
       </pattern>
       <pattern id="p-gyps" width="12" height="10" patternUnits="userSpaceOnUse">
         <rect width="12" height="10" fill="#E8E8D5"/>
@@ -1230,6 +1498,37 @@ function SvgDefs({ totalH, spx }) {
       <pattern id="p-coal" width="8" height="4" patternUnits="userSpaceOnUse">
         <rect width="8" height="4" fill="#181616"/>
         <line x1="0" y1="2" x2="8" y2="2" stroke="#322E2A" strokeWidth=".6"/>
+      </pattern>
+      {/* FGDC 636 — Sandy limestone: brick + stipple dots */}
+      <pattern id="p-sandylm" width="18" height="12" patternUnits="userSpaceOnUse">
+        <rect width="18" height="12" fill="#B8C8D0"/>
+        <rect x=".5" y=".5" width="15" height="5" fill="none" stroke="#356296" strokeWidth=".6"/>
+        <rect x="9" y="6" width="15" height="5" fill="none" stroke="#356296" strokeWidth=".6"/>
+        <circle cx="4" cy="3" r=".7" fill="#8A7820"/><circle cx="12" cy="8" r=".7" fill="#8A7820"/>
+        <circle cx="14" cy="3" r=".6" fill="#8A7820"/>
+      </pattern>
+      {/* FGDC 635 — Oolitic limestone: brick + small circles */}
+      <pattern id="p-oolitlm" width="18" height="12" patternUnits="userSpaceOnUse">
+        <rect width="18" height="12" fill="#BCC8D4"/>
+        <rect x=".5" y=".5" width="15" height="5" fill="none" stroke="#356296" strokeWidth=".6"/>
+        <rect x="9" y="6" width="15" height="5" fill="none" stroke="#356296" strokeWidth=".6"/>
+        <circle cx="5" cy="3" r="1.4" fill="none" stroke="#356296" strokeWidth=".5"/>
+        <circle cx="13" cy="9" r="1.4" fill="none" stroke="#356296" strokeWidth=".5"/>
+        <circle cx="15" cy="3" r="1.1" fill="none" stroke="#356296" strokeWidth=".5"/>
+      </pattern>
+      {/* FGDC 626 — Chalk: very fine horizontal lines + stipple */}
+      <pattern id="p-chalk" width="10" height="8" patternUnits="userSpaceOnUse">
+        <rect width="10" height="8" fill="#E8E4DC"/>
+        <line x1="0" y1="4" x2="10" y2="4" stroke="#B0A89C" strokeWidth=".5"/>
+        <circle cx="2" cy="2" r=".4" fill="#C0B8A8"/><circle cx="7" cy="6" r=".4" fill="#C0B8A8"/>
+        <circle cx="5" cy="1" r=".35" fill="#C0B8A8"/><circle cx="9" cy="3" r=".35" fill="#C0B8A8"/>
+      </pattern>
+      {/* FGDC 623 — Marl / calcareous shale: horizontal lines + brick hints */}
+      <pattern id="p-marl" width="18" height="10" patternUnits="userSpaceOnUse">
+        <rect width="18" height="10" fill="#B0B8A8"/>
+        <line x1="0" y1="3" x2="18" y2="3" stroke="#5A6E56" strokeWidth=".7"/>
+        <line x1="0" y1="7" x2="18" y2="7" stroke="#5A6E56" strokeWidth=".7"/>
+        <rect x="4" y="3.5" width="8" height="3" fill="none" stroke="#356296" strokeWidth=".5"/>
       </pattern>
 
       {/* ── Volcánicas — lavas ── */}
@@ -1272,7 +1571,41 @@ function SvgDefs({ totalH, spx }) {
         <polygon points="3,14 8,13 9,18 4,19" fill="#676359" stroke="#363229" strokeWidth=".7"/>
       </pattern>
 
-      {/* ── Volcánicas — piroclásticas ── */}
+      {/* ── Tefras — no litificados (fondo claro, fragmentos sueltos) ── */}
+      <pattern id="p-tefblk" width="28" height="24" patternUnits="userSpaceOnUse">
+        <rect width="28" height="24" fill="#E8D8C0"/>
+        <polygon points="3,3 10,2 13,9 6,13 1,8" fill="none" stroke="#8A7A5E" strokeWidth="1" strokeDasharray="2,1"/>
+        <polygon points="16,10 24,9 26,18 19,21 14,16" fill="none" stroke="#8A7A5E" strokeWidth="1" strokeDasharray="2,1"/>
+        <polygon points="15,1 20,2 21,6 16,7" fill="none" stroke="#8A7A5E" strokeWidth=".8" strokeDasharray="2,1"/>
+        <circle cx="7" cy="19" r=".8" fill="#A8986E"/>
+        <circle cx="24" cy="4" r=".7" fill="#A8986E"/>
+      </pattern>
+      <pattern id="p-tefbmb" width="28" height="24" patternUnits="userSpaceOnUse">
+        <rect width="28" height="24" fill="#E8D8C0"/>
+        <ellipse cx="8" cy="7" rx="6" ry="4.5" fill="none" stroke="#8A7A5E" strokeWidth="1" strokeDasharray="2,1"/>
+        <ellipse cx="21" cy="17" rx="5.5" ry="4" fill="none" stroke="#8A7A5E" strokeWidth="1" strokeDasharray="2,1"/>
+        <ellipse cx="22" cy="4" rx="3" ry="2.2" fill="none" stroke="#8A7A5E" strokeWidth=".8" strokeDasharray="2,1"/>
+        <circle cx="5" cy="19" r=".8" fill="#A8986E"/>
+      </pattern>
+      <pattern id="p-teflap" width="18" height="16" patternUnits="userSpaceOnUse">
+        <rect width="18" height="16" fill="#E2D4B8"/>
+        <circle cx="4" cy="4" r="2.2" fill="none" stroke="#8A7A5E" strokeWidth=".8" strokeDasharray="1.5,1"/>
+        <circle cx="12" cy="5" r="2" fill="none" stroke="#8A7A5E" strokeWidth=".7" strokeDasharray="1.5,1"/>
+        <circle cx="8" cy="11" r="2.3" fill="none" stroke="#8A7A5E" strokeWidth=".8" strokeDasharray="1.5,1"/>
+        <circle cx="15" cy="13" r="1.8" fill="none" stroke="#8A7A5E" strokeWidth=".7" strokeDasharray="1.5,1"/>
+        <circle cx="2" cy="14" r="1.5" fill="none" stroke="#8A7A5E" strokeWidth=".7" strokeDasharray="1.5,1"/>
+      </pattern>
+      <pattern id="p-tefcen" width="10" height="10" patternUnits="userSpaceOnUse">
+        <rect width="10" height="10" fill="#EDE4D0"/>
+        <circle cx="2" cy="2" r=".5" fill="#B8A880"/>
+        <circle cx="7" cy="3" r=".4" fill="#B8A880"/>
+        <circle cx="4" cy="6" r=".5" fill="#B8A880"/>
+        <circle cx="9" cy="7" r=".4" fill="#B8A880"/>
+        <circle cx="1" cy="9" r=".4" fill="#B8A880"/>
+        <circle cx="6" cy="9" r=".5" fill="#B8A880"/>
+      </pattern>
+
+      {/* ── Rocas volcánicas piroclásticas — litificados ── */}
       <pattern id="p-ashtuff" width="18" height="16" patternUnits="userSpaceOnUse">
         <rect width="18" height="16" fill="#D2CCBE"/>
         <path d="M3,4 l1.6,2.6 l1.6,-2.6" fill="none" stroke="#968E7C" strokeWidth=".8"/>
@@ -1295,13 +1628,6 @@ function SvgDefs({ totalH, spx }) {
         <ellipse cx="23" cy="9" rx="7" ry="4" fill="#988870" stroke="#6C5E48" strokeWidth="1" transform="rotate(-20 23 9)"/>
         <polygon points="18,17 28,16 30,25 21,27 16,22" fill="#988870" stroke="#6C5E48" strokeWidth="1"/>
         <path d="M5,21 l1.3,2.1 l1.3,-2.1" fill="none" stroke="#6C5E48" strokeWidth=".8"/>
-      </pattern>
-      <pattern id="p-ignim" width="24" height="16" patternUnits="userSpaceOnUse">
-        <rect width="24" height="16" fill="#C6B2A8"/>
-        <ellipse cx="6" cy="4" rx="5" ry="1.4" fill="#785850"/>
-        <ellipse cx="17" cy="8" rx="6" ry="1.6" fill="#785850"/>
-        <ellipse cx="5" cy="12" rx="4.6" ry="1.3" fill="#785850"/>
-        <ellipse cx="20" cy="14" rx="4" ry="1.2" fill="#785850"/>
       </pattern>
       <pattern id="p-agglom" width="30" height="26" patternUnits="userSpaceOnUse">
         <rect width="30" height="26" fill="#A89684"/>
@@ -1353,13 +1679,68 @@ function SvgDefs({ totalH, spx }) {
         <polygon points="14,11 20,11 21,16 15,17" fill="#8A7C5E" stroke="#64583E" strokeWidth=".7"/>
       </pattern>
 
-      {/* ── Intrusivas plutónicas ── */}
+      {/* ── Intrusivas plutónicas (serie QAP, félsica → máfica) ── */}
+      {/* Álcali-feldespato granito: muy félsico, FK rosado dominante + cuarzo */}
+      <pattern id="p-afgran" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#E4CEC6"/>
+        <ellipse cx="3" cy="4" rx="1.7" ry="1.1" fill="#D8A890" transform="rotate(30 3 4)"/>
+        <ellipse cx="10" cy="8" rx="1.6" ry="1" fill="#D29E86" transform="rotate(-40 10 8)"/>
+        <ellipse cx="6" cy="11" rx="1.3" ry=".9" fill="#9C9C98" transform="rotate(15 6 11)"/>
+        <circle cx="11" cy="3" r=".7" fill="#4A4040"/>
+      </pattern>
       <pattern id="p-gran" width="14" height="14" patternUnits="userSpaceOnUse">
         <rect width="14" height="14" fill="#D5C8C0"/>
         <ellipse cx="3" cy="4" rx="1.5" ry="1" fill="#7A7A7A" transform="rotate(30 3 4)"/>
         <ellipse cx="9" cy="8" rx="2" ry="1.2" fill="#332D2D" transform="rotate(60 9 8)"/>
         <ellipse cx="5" cy="11" rx="1.2" ry=".8" fill="#B0A090" transform="rotate(-20 5 11)"/>
         <ellipse cx="11" cy="3" rx="1.3" ry=".7" fill="#8E8E8E" transform="rotate(45 11 3)"/>
+      </pattern>
+      {/* Sienita: FK rosado dominante, sin cuarzo, anfíbol oscuro */}
+      <pattern id="p-syen" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#DDC6C0"/>
+        <ellipse cx="3" cy="4" rx="1.8" ry="1.1" fill="#D2A28E" transform="rotate(30 3 4)"/>
+        <ellipse cx="10" cy="7" rx="1.7" ry="1.1" fill="#C89A86" transform="rotate(-45 10 7)"/>
+        <ellipse cx="5" cy="11" rx="1.5" ry="1" fill="#CEA092" transform="rotate(20 5 11)"/>
+        <ellipse cx="12" cy="12" rx="1.1" ry=".7" fill="#3A3632" transform="rotate(10 12 12)"/>
+        <circle cx="11" cy="3" r=".7" fill="#2E2A28"/>
+      </pattern>
+      {/* Cuarzosienita: sienita + algo de cuarzo gris */}
+      <pattern id="p-qsyen" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#DECAC4"/>
+        <ellipse cx="3" cy="4" rx="1.7" ry="1.1" fill="#D2A28E" transform="rotate(30 3 4)"/>
+        <ellipse cx="10" cy="7" rx="1.5" ry="1" fill="#CA9C88" transform="rotate(-45 10 7)"/>
+        <ellipse cx="6" cy="11" rx="1.4" ry=".9" fill="#9C9C98" transform="rotate(20 6 11)"/>
+        <ellipse cx="2" cy="11" rx="1.1" ry=".8" fill="#8E8E8A" transform="rotate(-10 2 11)"/>
+        <circle cx="12" cy="3" r=".7" fill="#332E2C"/>
+      </pattern>
+      {/* Monzonita: FK rosado + plagioclasa blanca en igual proporción, sin cuarzo */}
+      <pattern id="p-monz" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#CFC6C0"/>
+        <ellipse cx="3" cy="4" rx="1.6" ry="1" fill="#CC9E8A" transform="rotate(30 3 4)"/>
+        <ellipse cx="10" cy="7" rx="1.6" ry="1" fill="#E2E0DA" transform="rotate(-45 10 7)"/>
+        <ellipse cx="5" cy="11" rx="1.4" ry=".9" fill="#C89A86" transform="rotate(20 5 11)"/>
+        <ellipse cx="11" cy="11" rx="1.2" ry=".8" fill="#DEDCD6" transform="rotate(-10 11 11)"/>
+        <circle cx="12" cy="3" r=".8" fill="#322C2A"/>
+        <circle cx="6" cy="7" r=".7" fill="#3A3430"/>
+      </pattern>
+      {/* Cuarzomonzonita: monzonita + cuarzo gris (clásica de pórfidos) */}
+      <pattern id="p-qmonz" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#D0C6C0"/>
+        <ellipse cx="3" cy="4" rx="1.6" ry="1" fill="#CC9E8A" transform="rotate(30 3 4)"/>
+        <ellipse cx="10" cy="7" rx="1.5" ry="1" fill="#E0DED8" transform="rotate(-45 10 7)"/>
+        <ellipse cx="6" cy="11" rx="1.3" ry=".9" fill="#9A9A96" transform="rotate(20 6 11)"/>
+        <ellipse cx="2" cy="10" rx="1.1" ry=".8" fill="#C89A86" transform="rotate(-10 2 10)"/>
+        <circle cx="12" cy="3" r=".8" fill="#322C2A"/>
+        <circle cx="9" cy="12" r=".7" fill="#3A3430"/>
+      </pattern>
+      {/* Monzodiorita: más máfica, plagioclasa gris + máficos abundantes, tinte rosado tenue */}
+      <pattern id="p-monzdi" width="13" height="13" patternUnits="userSpaceOnUse">
+        <rect width="13" height="13" fill="#BFC0B8"/>
+        <ellipse cx="3" cy="4" rx="1.5" ry="1" fill="#C49888" transform="rotate(30 3 4)"/>
+        <circle cx="9" cy="7" r="1.3" fill="#2E2A28"/>
+        <circle cx="5" cy="11" r="1.1" fill="#3A3632"/>
+        <ellipse cx="11" cy="11" rx="1.2" ry=".8" fill="#D8D6CE" transform="rotate(-15 11 11)"/>
+        <circle cx="11" cy="3" r="1" fill="#262220"/>
       </pattern>
       <pattern id="p-grdior" width="14" height="14" patternUnits="userSpaceOnUse">
         <rect width="14" height="14" fill="#CFCEC8"/>
@@ -1386,6 +1767,16 @@ function SvgDefs({ totalH, spx }) {
         <circle cx="8" cy="9" r="1.3" fill="#302C2C"/>
         <circle cx="2" cy="10" r="1" fill="#E4E4DE"/>
         <circle cx="11" cy="10" r="1" fill="#3A3636"/>
+      </pattern>
+      {/* Monzogabro: máfico oscuro, plagioclasa clara + piroxeno + FK rosado tenue */}
+      <pattern id="p-monzgb" width="16" height="16" patternUnits="userSpaceOnUse">
+        <rect width="16" height="16" fill="#565A52"/>
+        <rect x="2" y="3" width="4" height="1.6" fill="#C6CABF" transform="rotate(25 4 3.8)"/>
+        <rect x="9" y="6" width="4" height="1.5" fill="#C0A89C" transform="rotate(-40 11 6.8)"/>
+        <rect x="4" y="11" width="3.6" height="1.4" fill="#BEC2BA" transform="rotate(15 5.8 11.7)"/>
+        <circle cx="12" cy="3" r="1.4" fill="#2A2E2A"/>
+        <circle cx="7" cy="8" r="1.2" fill="#24281F"/>
+        <circle cx="13" cy="13" r="1.1" fill="#2A2E2A"/>
       </pattern>
       <pattern id="p-gabbro" width="16" height="16" patternUnits="userSpaceOnUse">
         <rect width="16" height="16" fill="#494D4A"/>
@@ -1453,6 +1844,42 @@ function SvgDefs({ totalH, spx }) {
         <rect x="6" y="7" width="2.4" height="1" fill="#A8B0A0" transform="rotate(30 7.2 7.5)"/>
         <rect x="12" y="5" width="2" height=".9" fill="#A8B0A0" transform="rotate(-20 13 5.4)"/>
       </pattern>
+      {/* FGDC 702 — Quartzite: random short dashes at angles */}
+      <pattern id="p-quartzite" width="14" height="14" patternUnits="userSpaceOnUse">
+        <rect width="14" height="14" fill="#CCCCC4"/>
+        <line x1="2" y1="3" x2="5" y2="2" stroke="#74746C" strokeWidth="1"/>
+        <line x1="8" y1="6" x2="11" y2="8" stroke="#74746C" strokeWidth="1"/>
+        <line x1="3" y1="10" x2="6" y2="12" stroke="#74746C" strokeWidth="1"/>
+        <line x1="10" y1="2" x2="12" y2="4" stroke="#74746C" strokeWidth=".8"/>
+        <line x1="6" y1="7" x2="8" y2="5" stroke="#74746C" strokeWidth=".8"/>
+        <line x1="11" y1="12" x2="14" y2="11" stroke="#74746C" strokeWidth=".8"/>
+      </pattern>
+      {/* Marble: recrystallized brick + mosaic */}
+      <pattern id="p-marble" width="16" height="14" patternUnits="userSpaceOnUse">
+        <rect width="16" height="14" fill="#D8D8D0"/>
+        <path d="M0,5 Q4,3 8,5 Q12,7 16,5" fill="none" stroke="#9898A0" strokeWidth=".6"/>
+        <path d="M0,10 Q4,8 8,10 Q12,12 16,10" fill="none" stroke="#9898A0" strokeWidth=".6"/>
+        <polygon points="3,2 6,1 7,4 4,5" fill="none" stroke="#A8A8B0" strokeWidth=".4"/>
+        <polygon points="10,7 13,6 14,9 11,10" fill="none" stroke="#A8A8B0" strokeWidth=".4"/>
+        <polygon points="5,9 8,8 9,11 6,12" fill="none" stroke="#A8A8B0" strokeWidth=".4"/>
+      </pattern>
+      {/* Hornfels / cornubianita: dense speckled, dark */}
+      <pattern id="p-hornfels" width="10" height="10" patternUnits="userSpaceOnUse">
+        <rect width="10" height="10" fill="#686860"/>
+        <circle cx="2" cy="2" r=".8" fill="#4A4A44"/><circle cx="7" cy="3" r=".9" fill="#4A4A44"/>
+        <circle cx="4" cy="7" r=".9" fill="#4A4A44"/><circle cx="9" cy="8" r=".8" fill="#4A4A44"/>
+        <circle cx="1" cy="5" r=".6" fill="#565650"/><circle cx="6" cy="9" r=".6" fill="#565650"/>
+        <rect x="7" y="5" width="2" height=".8" fill="#888880" transform="rotate(30 8 5.4)"/>
+      </pattern>
+      {/* FGDC 710 — Serpentinite: wavy serpentine pattern */}
+      <pattern id="p-serpent" width="16" height="12" patternUnits="userSpaceOnUse">
+        <rect width="16" height="12" fill="#4A6050"/>
+        <path d="M0,3 Q4,1 8,3 Q12,5 16,3" fill="none" stroke="#2E3E34" strokeWidth=".9"/>
+        <path d="M0,7 Q4,5 8,7 Q12,9 16,7" fill="none" stroke="#2E3E34" strokeWidth=".9"/>
+        <path d="M0,11 Q4,9 8,11 Q12,13 16,11" fill="none" stroke="#2E3E34" strokeWidth=".9"/>
+        <ellipse cx="5" cy="5" rx="1.8" ry=".8" fill="#3A5244" transform="rotate(-10 5 5)"/>
+        <ellipse cx="12" cy="9" rx="1.6" ry=".7" fill="#3A5244" transform="rotate(10 12 9)"/>
+      </pattern>
 
       {/* ── Cubierto / sin afloramiento ── */}
       <pattern id="p-covered" width="10" height="10" patternUnits="userSpaceOnUse">
@@ -1461,7 +1888,129 @@ function SvgDefs({ totalH, spx }) {
         <line x1="0" y1="10" x2="10" y2="0" stroke="#9C9080" strokeWidth="1.1"/>
         <line x1="5" y1="15" x2="15" y2="5" stroke="#9C9080" strokeWidth="1.1"/>
       </pattern>
+
+      {/* ── Modificadores de zona (overlay semitransparente sobre litología) ── */}
+      <pattern id="mod-paleosuelo" width="10" height="8" patternUnits="userSpaceOnUse">
+        <circle cx="2.5" cy="3" r="1.4" fill="#6B4D10"/>
+        <circle cx="7.5" cy="1.5" r="1.0" fill="#6B4D10"/>
+        <circle cx="5" cy="6.5" r="1.6" fill="#6B4D10"/>
+        <circle cx="9" cy="5" r="1.1" fill="#6B4D10"/>
+        <circle cx="1" cy="7" r="0.7" fill="#5A3D08"/>
+      </pattern>
+      <pattern id="mod-trazas" width="14" height="10" patternUnits="userSpaceOnUse">
+        <path d="M0,5 Q2,2 4,5 Q6,8 8,5 Q10,2 12,5" stroke="#5C3D1A" strokeWidth="1.4" fill="none"/>
+        <circle cx="0" cy="5" r="1" fill="#5C3D1A"/>
+        <circle cx="12" cy="5" r="1" fill="#5C3D1A"/>
+      </pattern>
+      <pattern id="mod-bioturbacion" width="12" height="12" patternUnits="userSpaceOnUse">
+        <ellipse cx="6" cy="4" rx="4" ry="2" stroke="#7A5830" strokeWidth="1" fill="none"/>
+        <line x1="6" y1="2" x2="6" y2="10" stroke="#7A5830" strokeWidth="0.8"/>
+        <ellipse cx="3" cy="9" rx="2.5" ry="1.5" stroke="#7A5830" strokeWidth="0.8" fill="none"/>
+      </pattern>
+      <pattern id="mod-oxidacion" width="8" height="8" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="4" x2="8" y2="4" stroke="#C0391B" strokeWidth="0.8"/>
+        <line x1="4" y1="0" x2="4" y2="8" stroke="#C0391B" strokeWidth="0.5"/>
+        <circle cx="4" cy="4" r="1" fill="#C0391B"/>
+      </pattern>
+      <pattern id="mod-cemento-calc" width="10" height="8" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="0" x2="10" y2="0" stroke="#7AAEDB" strokeWidth="0.8"/>
+        <line x1="0" y1="4" x2="10" y2="4" stroke="#7AAEDB" strokeWidth="0.5"/>
+        <circle cx="5" cy="2" r="0.9" fill="#2D7BA8"/>
+      </pattern>
+      <pattern id="mod-silice" width="10" height="10" patternUnits="userSpaceOnUse">
+        <polygon points="5,1 9,8 1,8" stroke="#9A8E78" strokeWidth="0.9" fill="none"/>
+        <polygon points="5,3 7.5,7.5 2.5,7.5" fill="#9A8E78" fillOpacity="0.3"/>
+      </pattern>
+      <pattern id="mod-nodulos" width="14" height="10" patternUnits="userSpaceOnUse">
+        <ellipse cx="4" cy="5" rx="3" ry="2.5" stroke="#6B5C3E" strokeWidth="1" fill="#B8A882" fillOpacity="0.45"/>
+        <ellipse cx="11" cy="5" rx="2.5" ry="2" stroke="#6B5C3E" strokeWidth="0.8" fill="#B8A882" fillOpacity="0.35"/>
+      </pattern>
+      <pattern id="mod-carbon" width="8" height="6" patternUnits="userSpaceOnUse">
+        <rect width="8" height="6" fill="#2C2C2A"/>
+        <line x1="0" y1="2" x2="8" y2="2" stroke="#5F5E5A" strokeWidth="0.5"/>
+        <line x1="0" y1="4.5" x2="8" y2="4.5" stroke="#B8A882" strokeWidth="0.3"/>
+      </pattern>
     </defs>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LITHOLOGY PICKER — dropdown con grupos colapsables
+// ═══════════════════════════════════════════════════════════════
+function LithoPicker({ value, onChange, exclude }) {
+  const [open, setOpen] = useState(false);
+  // El onClick del trigger re-siembra `expanded` en cada apertura; basta un Set vacío inicial
+  const [expanded, setExpanded] = useState(() => new Set());
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", h);
+    return () => document.removeEventListener("pointerdown", h);
+  }, [open]);
+  const li = findL(value);
+  const toggle = g => setExpanded(p => {
+    const n = new Set(p); if (n.has(g)) n.delete(g); else n.add(g); return n;
+  });
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => { if (!open) { setExpanded(new Set(li ? [li[4]] : [])); } setOpen(!open); }}
+        style={{
+          width: "100%", textAlign: "left", padding: "6px 8px",
+          fontFamily: MONO, fontSize: 11.5,
+          border: `1px solid ${T.inputBd}`, background: T.inputBg,
+          color: T.text, borderRadius: 3, cursor: "pointer",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{li[1]}</span>
+        <span style={{ fontSize: 9, color: T.text3, flexShrink: 0, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
+          maxHeight: 340, overflowY: "auto",
+          background: T.card, border: `1px solid ${T.borderDk}`,
+          borderRadius: "0 0 4px 4px", boxShadow: "0 6px 16px rgba(42,31,18,.18)",
+        }}>
+          {LITH_GROUPS.map(g => {
+            const items = exclude
+              ? LITH_BY_GROUP.get(g).filter(l => l[0] !== exclude)
+              : LITH_BY_GROUP.get(g);
+            if (items.length === 0) return null;
+            const isExp = expanded.has(g);
+            return (
+              <div key={g}>
+                <div onClick={() => toggle(g)} style={{
+                  padding: "9px 10px", cursor: "pointer",
+                  background: T.panelAlt, fontFamily: SANS, fontSize: 10,
+                  fontWeight: 700, color: T.borderDk, borderBottom: `1px solid ${T.border}`,
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  userSelect: "none", position: "sticky", top: 0, zIndex: 1,
+                  letterSpacing: ".02em",
+                }}>
+                  <span>{g}</span>
+                  <span style={{ fontSize: 8, color: T.text3 }}>{isExp ? "▼" : "▶"} {items.length}</span>
+                </div>
+                {isExp && items.map(l => (
+                  <div key={l[0]}
+                    onClick={() => { onChange(l[0]); setOpen(false); }}
+                    style={{
+                      padding: "9px 14px", cursor: "pointer", fontSize: 12,
+                      fontFamily: MONO, color: l[0] === value ? T.green : T.text,
+                      fontWeight: l[0] === value ? 700 : 400,
+                      background: l[0] === value ? "#E3EEDD" : "transparent",
+                      borderBottom: `1px solid ${T.border}`,
+                    }}
+                    onMouseEnter={e => { if (l[0] !== value) e.currentTarget.style.background = T.panelAlt; }}
+                    onMouseLeave={e => { if (l[0] !== value) e.currentTarget.style.background = "transparent"; }}
+                  >{l[1]}</div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1474,15 +2023,23 @@ const DF = {
   structures: "", structSymbols: [], fossilsDating: "", contactBottom: "sharp",
   environment: "", paleocurrent: "", weathering: "fresco", notes: "",
   age: "", formation: "",
+  // Modo de cálculo del espesor: "badgley" o "manual"
+  thicknessMode: "badgley",
   // Orientación y geometría (Badgley/Ragan)
   rumbo: "",        // texto (azimut o cuadrantal); se parsea con parseRumbo
   manteo: "",       // dip δ (°)
   dirBuz: "derecha",// "derecha" o "izquierda" del rumbo
   azTraza: "",      // azimut del recorrido en esa unidad (°)
   dh: "",           // largo de traza en planta (m)
-  deltaH: "",       // desnivel topográfico (+ asciende, − desciende)
+  deltaH: "",       // desnivel topográfico (valor absoluto en metros)
   signChoice: "neg",// "neg" mismo sentido buzamiento, "pos" contrario
+  // Datos duros de intercalación / alternancia (en cm)
+  interpLi1MinCm: "", interpLi1MaxCm: "",  // rango de espesor de la litología principal
+  interpLi2MinCm: "", interpLi2MaxCm: "",  // rango de espesor de la litología secundaria
+  beddingTrend: "",  // "" = uniforme, "thinning" = estrato decreciente (thins upward)
   photo: null, photoCaption: "",
+  modTecho: null, modMuro: null,
+  bioturbIndex: null, traceIchnos: [],
 };
 const DEFAULT_META = {
   project: "", locality: "", author: "", date: "",
@@ -1502,6 +2059,7 @@ function ColumnaEstratigrafica() {
   const [f,          setF]          = useState(DF);
   const [photoModal, setPhotoModal] = useState(null);
   const [showHelp,   setShowHelp]   = useState(false);
+  const [modOpen,    setModOpen]    = useState(false);
   const [toast,      setToast]      = useState("");
   const [panelTab,   setPanelTab]   = useState("units");
   const [meta,       setMeta]       = useState(DEFAULT_META);
@@ -1510,6 +2068,22 @@ function ColumnaEstratigrafica() {
   const [edgeStyle,  setEdgeStyle]  = useState("freehand");
   const [vw,         setVw]         = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
   const [mobileView, setMobileView] = useState("edit");
+  const [openStructGroups, setOpenStructGroups] = useState(() => new Set(["Estratificación"]));
+  const toggleStructGroup = g => setOpenStructGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
+  const [openIchnoGroups, setOpenIchnoGroups] = useState(() => new Set(["Skolithos"]));
+  const toggleIchnoGroup = g => setOpenIchnoGroups(prev => {
+    const next = new Set(prev);
+    next.has(g) ? next.delete(g) : next.add(g);
+    return next;
+  });
+  const toggleIchno = id => setF(p => {
+    const cur = p.traceIchnos || [];
+    return { ...p, traceIchnos: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] };
+  });
   useEffect(() => {
     const onR = () => setVw(window.innerWidth);
     window.addEventListener("resize", onR);
@@ -1547,12 +2121,23 @@ function ColumnaEstratigrafica() {
   const structRows = Math.ceil(usedStruct.length / 2);
   const usedSampleTypes = SAMPLE_TYPES.filter(t => samples.some(s => s.type === t[0]));
   const sampRows = Math.ceil(usedSampleTypes.length / 2);
+  const usedMods = MOD_TYPES.filter(m => units.some(u => u.modTecho?.type === m[0] || u.modMuro?.type === m[0]));
+  const modRows = Math.ceil(usedMods.length / 2);
+  const usedIchno = ICHNO_TYPES.filter(t => units.some(u => (u.traceIchnos || []).includes(t[0])));
+  const ichnoRows = Math.ceil(usedIchno.length / 2);
+  const hasBI = units.some(u => u.bioturbIndex != null);
   // posiciones verticales (dentro del grupo de leyenda) — cursor secuencial
   let legCur = 82 + Math.max(1, legRows) * 17;        // fin del bloque litologías
   const structsTopY = legCur + 14;
   if (usedStruct.length) legCur = structsTopY + 18 + structRows * 17;
   const sampTopY = legCur + 14;
   if (usedSampleTypes.length) legCur = sampTopY + 18 + sampRows * 17;
+  const modsTopY = legCur + 14;
+  if (usedMods.length) legCur = modsTopY + 18 + modRows * 17;
+  const ichnoTopY = legCur + 14;
+  if (usedIchno.length) legCur = ichnoTopY + 18 + ichnoRows * 17;
+  const biTopY = legCur + 14;
+  if (hasBI) legCur = biTopY + 34;
   const legH = 24 + legCur + 16;
   const svgH     = MT + totalH * SPX + legH;
   const svgW     = SW;
@@ -1570,10 +2155,14 @@ function ColumnaEstratigrafica() {
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2400); };
 
   // ── Handlers ─────────────────────────────────────────────────
-  // El espesor que dibuja la columna ES el espesor REAL calculado con Badgley.
-  // Si no hay datos válidos de orientación + dh + Δh, se intenta usar un
-  // fallback: thickness manual del campo (compatibilidad con columnas antiguas).
+  // El espesor que dibuja la columna depende del modo:
+  //  - "manual"  → toma directamente u.thickness (m)
+  //  - "badgley" → calcula con Badgley/Ragan; si faltan datos, cae a u.thickness
   const realFor = u => {
+    if (u.thicknessMode === "manual") {
+      const t = parseFloat(u.thickness);
+      return (isFinite(t) && t > 0) ? t : null;
+    }
     const r = unitGeometry(u);
     if (r && isFinite(r.espesor)) return Math.abs(r.espesor);
     const t = parseFloat(u.thickness);
@@ -1597,7 +2186,21 @@ function ColumnaEstratigrafica() {
     setUnits(p => p.map(u => u.id === editId ? { ...f, id: editId, thickness: t } : u));
     setEditId(null); setF(DF);
   };
-  const doEdit   = u => { setEditId(u.id); setF({ ...u, thickness: String(u.thickness) }); };
+  const doEdit   = u => {
+    setEditId(u.id); setF({ ...u, thickness: String(u.thickness) });
+    const syms = (u.structSymbols || []);
+    const activeGroups = new Set(syms.map(id => {
+      const s = STRUCTS.find(s => s[0] === id);
+      return s ? s[2] : null;
+    }).filter(Boolean));
+    setOpenStructGroups(activeGroups.size > 0 ? activeGroups : new Set(["Estratificación"]));
+    const ichnos = (u.traceIchnos || []);
+    const activeIchnoGroups = new Set(ichnos.map(id => {
+      const t = ICHNO_TYPES.find(t => t[0] === id);
+      return t ? t[2] : null;
+    }).filter(Boolean));
+    setOpenIchnoGroups(activeIchnoGroups.size > 0 ? activeIchnoGroups : new Set(["Skolithos"]));
+  };
   const doCancel = () => { setEditId(null); setF(DF); };
   const doDel    = id => {
     setUnits(p => p.filter(u => u.id !== id));
@@ -1607,6 +2210,14 @@ function ColumnaEstratigrafica() {
     const i = p.findIndex(u => u.id === id), a = [...p], j = i + dir;
     if (j < 0 || j >= a.length) return p;
     [a[i], a[j]] = [a[j], a[i]];
+    return a;
+  });
+  // Duplica una unidad insertando la copia justo encima (útil en ritmitas)
+  const doDup = id => setUnits(p => {
+    const i = p.findIndex(u => u.id === id);
+    if (i < 0) return p;
+    const a = [...p];
+    a.splice(i + 1, 0, { ...p[i], id: `u${nextId++}` });
     return a;
   });
   const doClear = () => {
@@ -1631,11 +2242,9 @@ function ColumnaEstratigrafica() {
     const parsed = rows.map(r => {
       const t = parseFloat(r.thickness);
       if (!t || t <= 0) return null;
-      let lid = (r.lithology || "").trim();
-      if (LITHO_ALIAS[lid]) lid = LITHO_ALIAS[lid];
+      const lid = normalizeLithoId(r.lithology);
       const lithoId = validLitho.has(lid) ? lid : "sandstone";
-      let lid2 = (r.lithology2 || "").trim();
-      if (LITHO_ALIAS[lid2]) lid2 = LITHO_ALIAS[lid2];
+      const lid2 = normalizeLithoId(r.lithology2);
       const lithoId2 = (lid2 && validLitho.has(lid2) && lid2 !== lithoId) ? lid2 : "";
       const ratioRaw = parseFloat(r.lithoRatio);
       const lithoRatio = (isFinite(ratioRaw) && ratioRaw >= 0.1 && ratioRaw <= 0.9) ? ratioRaw : 0.5;
@@ -1650,8 +2259,8 @@ function ColumnaEstratigrafica() {
         structures:    r.structures || "",
         structSymbols: (r.structSymbols || "").split(";").map(s => s.trim()).filter(s => validStruct.has(s)),
         fossilsDating: r.fossilsDating || "",
-        contactBottom: validCont.has(r.contactBottom)   ? r.contactBottom  : "sharp",
-        environment:   r.environment || "",
+        contactBottom: validCont.has(CONTACT_ALIAS[r.contactBottom] || r.contactBottom) ? (CONTACT_ALIAS[r.contactBottom] || r.contactBottom) : "sharp",
+        environment:   LEGACY_ENV_ALIAS[r.environment] || r.environment || "",
         paleocurrent:  r.paleocurrent || "",
         weathering:    validWeath.has(r.weathering)     ? r.weathering     : "fresco",
         notes:         r.notes || "",
@@ -1664,7 +2273,18 @@ function ColumnaEstratigrafica() {
         dh:            r.dh || "",
         deltaH:        r.deltaH || "",
         signChoice:    r.signChoice === "pos" ? "pos" : "neg",
+        thicknessMode: r.thicknessMode === "manual" ? "manual" : "badgley",
+        interpLi1MinCm: r.interpLi1MinCm || "", interpLi1MaxCm: r.interpLi1MaxCm || "",
+        interpLi2MinCm: r.interpLi2MinCm || "", interpLi2MaxCm: r.interpLi2MaxCm || "",
+        beddingTrend: r.beddingTrend === "thinning" ? "thinning" : "",
         photo: null, photoCaption: "",
+        modTecho: parseMod(r.modTechoType, r.modTechoCm, r.modTechoNotes, t),
+        modMuro:  parseMod(r.modMuroType,  r.modMuroCm,  r.modMuroNotes,  t),
+        bioturbIndex: (r.bioturbIndex !== "" && r.bioturbIndex != null)
+          ? Math.min(6, Math.max(0, parseInt(r.bioturbIndex, 10) || 0)) : null,
+        traceIchnos: r.traceIchnos
+          ? r.traceIchnos.split(";").map(s => s.trim()).filter(s => ICHNO_TYPES.some(x => x[0] === s))
+          : [],
       };
     }).filter(Boolean);
     if (parsed.length === 0) { showToast("⚠ No se encontraron filas válidas"); return; }
@@ -1737,25 +2357,36 @@ function ColumnaEstratigrafica() {
       if (!arr) throw new Error("formato");
       const parsed = arr.map(u => ({
         ...DF, ...u, id: `u${nextId++}`,
+        lithoId: normalizeLithoId(u.lithoId) || DF.lithoId,
+        lithoId2: normalizeLithoId(u.lithoId2),
         thickness: parseFloat(u.thickness) || 0,
         structSymbols: Array.isArray(u.structSymbols) ? u.structSymbols : [],
+        traceIchnos:   Array.isArray(u.traceIchnos) ? u.traceIchnos.filter(s => ICHNO_TYPES.some(t => t[0] === s)) : [],
+        bioturbIndex:  u.bioturbIndex != null ? Math.min(6, Math.max(0, parseInt(u.bioturbIndex, 10) || 0)) : null,
+        contactBottom: CONTACT_ALIAS[u.contactBottom] || u.contactBottom || DF.contactBottom,
+        environment:   LEGACY_ENV_ALIAS[u.environment] || u.environment || "",
       })).filter(u => u.thickness > 0);
       if (!parsed.length) { showToast("⚠ El archivo no tiene unidades válidas"); return; }
       setUnits(parsed); setEditId(null); setF(DF);
       if (data.meta && typeof data.meta === "object") setMeta(m => ({ ...DEFAULT_META, ...data.meta }));
       const validST = new Set(SAMPLE_TYPES.map(t => t[0]));
       setSamples(Array.isArray(data.samples)
-        ? data.samples.map(s => ({
-            id: `s${nextId++}`, height: parseFloat(s.height) || 0,
-            code: String(s.code || ""), type: validST.has(s.type) ? s.type : "otra" }))
-          .filter(s => s.code)
+        ? data.samples.map(s => {
+            const o = { id: `s${nextId++}`, height: parseFloat(s.height) || 0,
+              code: String(s.code || ""), type: validST.has(s.type) ? s.type : "otra" };
+            if (s.utmE != null && s.utmN != null && String(s.utmE).trim() && String(s.utmN).trim()) {
+              o.utmE = String(s.utmE); o.utmN = String(s.utmN);
+            }
+            return o;
+          }).filter(s => s.code)
         : []);
       showToast(`✓ Proyecto abierto · ${parsed.length} unidades`);
     } catch { showToast("⚠ Archivo de proyecto inválido"); }
     e.target.value = "";
   };
   // ── GPS → autocompleta UTM (base o techo) ──
-  const captureGps = which => {
+  // Núcleo GPS reutilizable: pide posición y entrega UTM ya convertido a onOk(u, coords).
+  const requestGpsUtm = onOk => {
     if (!("geolocation" in navigator)) {
       showToast("⚠ Este dispositivo no expone GPS al navegador"); return;
     }
@@ -1767,21 +2398,24 @@ function ColumnaEstratigrafica() {
       const zone = parseInt(meta.utmZone, 10) || Math.floor((pos.coords.longitude + 180) / 6) + 1;
       const isSouth = (meta.utmHemi || "S").toUpperCase() !== "N";
       const u = latLonToUtm(pos.coords.latitude, pos.coords.longitude, zone, isSouth);
-      const Ek = which === "base" ? "utmE" : "utmE2";
-      const Nk = which === "base" ? "utmN" : "utmN2";
-      setMeta(p => ({
-        ...p,
-        utmZone: String(u.zone), utmHemi: u.isSouth ? "S" : "N",
-        [Ek]: u.E.toFixed(1), [Nk]: u.N.toFixed(1),
-        ...(which === "base" && pos.coords.altitude != null && !p.elevation
-          ? { elevation: pos.coords.altitude.toFixed(0) } : {}),
-      }));
-      const acc = pos.coords.accuracy != null ? ` · ±${Math.round(pos.coords.accuracy)} m` : "";
-      showToast(`✓ GPS ${which === "base" ? "base" : "techo"}: E ${u.E.toFixed(0)} / N ${u.N.toFixed(0)}${acc}`);
+      onOk(u, pos.coords);
     }, err => {
       showToast(`⚠ GPS: ${err.message || "no disponible"}`);
     }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 });
   };
+  const captureGps = which => requestGpsUtm((u, coords) => {
+    const Ek = which === "base" ? "utmE" : "utmE2";
+    const Nk = which === "base" ? "utmN" : "utmN2";
+    setMeta(p => ({
+      ...p,
+      utmZone: String(u.zone), utmHemi: u.isSouth ? "S" : "N",
+      [Ek]: u.E.toFixed(1), [Nk]: u.N.toFixed(1),
+      ...(which === "base" && coords.altitude != null && !p.elevation
+        ? { elevation: coords.altitude.toFixed(0) } : {}),
+    }));
+    const acc = coords.accuracy != null ? ` · ±${Math.round(coords.accuracy)} m` : "";
+    showToast(`✓ GPS ${which === "base" ? "base" : "techo"}: E ${u.E.toFixed(0)} / N ${u.N.toFixed(0)}${acc}`);
+  });
 
   const printColumn = () => {
     if (units.length === 0) { showToast("⚠ No hay columna para imprimir"); return; }
@@ -1823,11 +2457,22 @@ function ColumnaEstratigrafica() {
     border: `1px solid ${T.green}`, fontWeight: 600,
     boxShadow: "0 2px 0 rgba(45,95,78,.3)",
   };
-  const btnSmall = { ...btnBase, fontSize: 10, padding: "2px 7px" };
+  // En móvil agrandamos el target táctil (mín. ~34 px de alto) sin tocar el desktop
+  const btnSmall = { ...btnBase, fontSize: isNarrow ? 12 : 10,
+    padding: isNarrow ? "7px 12px" : "2px 7px",
+    minHeight: isNarrow ? 34 : undefined };
+  // Botón de grupo toggle (selección excluyente): verde si activo
+  const tgStyle = active => ({
+    flex: 1, cursor: "pointer", borderRadius: 3,
+    background: active ? "#E3EEDD" : T.inputBg,
+    border: `1px solid ${active ? T.green : T.inputBd}`,
+    color: active ? T.green : T.text2,
+    fontWeight: active ? 700 : 500,
+  });
 
   return (
     <div style={{
-      display: "flex", flexDirection: "column", minHeight: "100vh",
+      display: "flex", flexDirection: "column", minHeight: "100dvh",
       background: `
         repeating-linear-gradient(0deg, transparent 0, transparent 27px,
           rgba(139,107,71,.06) 27px, rgba(139,107,71,.06) 28px),
@@ -1844,7 +2489,11 @@ function ColumnaEstratigrafica() {
       {/* ═══ TOP BAR ═══ */}
       <div style={{
         background: T.hdrBg, color: T.hdrFg,
-        padding: "12px 22px", display: "flex", alignItems: "center", gap: 16,
+        padding: "12px 22px",
+        paddingTop: "calc(12px + env(safe-area-inset-top))",
+        paddingLeft: "calc(22px + env(safe-area-inset-left))",
+        paddingRight: "calc(22px + env(safe-area-inset-right))",
+        display: "flex", alignItems: "center", gap: 16,
         borderBottom: `3px double ${T.gold}`, flexShrink: 0, flexWrap: "wrap",
       }}>
         <div style={{ fontFamily: SERIF, fontSize: 22, fontStyle: "italic",
@@ -1860,8 +2509,10 @@ function ColumnaEstratigrafica() {
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
           {[["💾 GUARDAR", exportJson, "Guardar proyecto completo (incluye fotos y metadata) en .col.json"],
             ["📂 ABRIR", () => jsonInputRef.current?.click(), "Abrir un proyecto .col.json"],
-            ["⬇ TEMPLATE CSV", downloadTemplate, "Descargar template CSV con ejemplos"],
-            ["⬆ CARGAR CSV", () => csvInputRef.current?.click(), "Cargar columna desde CSV"],
+            ...(!isNarrow ? [
+              ["⬇ TEMPLATE CSV", downloadTemplate, "Descargar template CSV con ejemplos"],
+              ["⬆ CARGAR CSV", () => csvInputRef.current?.click(), "Cargar columna desde CSV"],
+            ] : []),
             ["EXPORTAR CSV", exportCsv, "Exportar columna actual a CSV"],
             ["EXPORTAR SVG", exportSvg, "Descargar columna como SVG"],
             ["🖨 PDF", printColumn, "Imprimir / exportar a PDF (solo la columna)"],
@@ -1906,11 +2557,12 @@ function ColumnaEstratigrafica() {
           borderRight: isNarrow ? "none" : `1px solid ${T.border}`,
           display: (!isNarrow || mobileView === "edit") ? "flex" : "none",
           flexDirection: "column", overflowY: "auto",
+          paddingBottom: isNarrow ? "env(safe-area-inset-bottom)" : undefined,
         }}>
           {/* TAB BAR */}
           <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`,
                         background: T.panel, flexShrink: 0 }}>
-            {[["units", "✚ Unidades"], ["meta", "⌖ Ubicación"], ["samples", "🧪 Muestras"]].map(([id, lbl]) => (
+            {PANEL_TABS.map(([id, lbl]) => (
               <button key={id} onClick={() => setPanelTab(id)} style={{
                 flex: 1, fontFamily: MONO, fontSize: 10.5, padding: "9px 4px",
                 cursor: "pointer", border: "none",
@@ -1931,8 +2583,177 @@ function ColumnaEstratigrafica() {
           {panelTab === "samples" && (
             <SamplesForm samples={samples} addSample={addSample} delSample={delSample}
               totalH={totalH} inputStyle={inputStyle} lblStyle={lblStyle}
-              secStyle={secStyle} btnPrimary={btnPrimary} btnSmall={btnSmall} />
+              secStyle={secStyle} btnPrimary={btnPrimary} btnSmall={btnSmall} btnBase={btnBase}
+              requestGpsUtm={requestGpsUtm} meta={meta} />
           )}
+
+          {/* ═══ THICKNESS TAB ═══ */}
+          {panelTab === "thickness" && (<>
+          <div style={{
+            padding: "10px 16px", background: T.panelAlt,
+            borderBottom: `1px solid ${T.border}`,
+            fontFamily: SERIF, fontSize: 13, fontStyle: "italic",
+            color: T.text, display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ color: editId ? T.rust : T.indigo, fontSize: 16 }}>📐</span>
+            {editId ? "Espesor — editando unidad" : "Espesor — nueva unidad"}
+          </div>
+          <div style={{ padding: "12px 16px", display: "flex",
+                        flexDirection: "column", gap: 9, flex: 1 }}>
+
+            <div style={{ ...secStyle, marginTop: 0, paddingTop: 0,
+                          borderTop: "none" }}>· Modo de cálculo ·</div>
+
+            <div style={lblStyle}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["badgley", "🧮 Calcular (Badgley)", "rumbo, manteo, dh y Δh"],
+                  ["manual", "✍️ Ingresar manual", "medición directa (ej. ritmitas)"]].map(([v, l, d]) => (
+                  <button key={v} type="button" onClick={() => ff("thicknessMode", v)}
+                    style={{ ...tgStyle(f.thicknessMode === v), padding: "7px 8px",
+                      fontSize: 10.5, textAlign: "left", lineHeight: 1.35 }}>
+                    <div>{l}</div>
+                    <div style={{ fontSize: 9, color: T.text3, fontFamily: SERIF,
+                      fontStyle: "italic", marginTop: 1 }}>{d}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {f.thicknessMode === "manual" ? (<>
+              <label style={lblStyle}>Espesor real (m)
+                <input type="number" min="0.001" step="0.01" placeholder="ej: 0.50  (50 cm)"
+                  value={f.thickness} onChange={e => ff("thickness", e.target.value)}
+                  style={inputStyle} />
+                <span style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF }}>
+                  Ideal para ritmitas finas o cuando la columna está medida con flexómetro
+                  contra el afloramiento.
+                </span>
+              </label>
+            </>) : (<>
+              <div style={secStyle}>· Orientación del estrato ·</div>
+
+              <label style={lblStyle}>Rumbo (azimut 0–360° o cuadrantal N30°E)
+                {(() => {
+                  const az = parseRumbo(f.rumbo);
+                  const err = f.rumbo.trim() !== "" && az == null;
+                  return (
+                    <>
+                      <input type="text" placeholder="ej: 320  ·  N40°W  ·  040"
+                        value={f.rumbo} onChange={e => ff("rumbo", e.target.value)}
+                        style={{ ...inputStyle, borderColor: err ? T.danger : T.inputBd }} />
+                      {err && <span style={{ color: T.danger, fontSize: 9.5 }}>Formato no reconocido</span>}
+                      {!err && az != null && <span style={{ color: T.green, fontSize: 9.5 }}>→ Azimut {az.toFixed(1)}°</span>}
+                    </>
+                  );
+                })()}
+              </label>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <label style={{ ...lblStyle, flex: 1 }}>Manteo δ (°)
+                  <input type="number" step="any" min="0" max="90" placeholder="0–90"
+                    value={f.manteo} onChange={e => ff("manteo", e.target.value)}
+                    style={inputStyle} />
+                </label>
+                <div style={{ ...lblStyle, flex: 1.3 }}>
+                  <span>Dir. buzamiento (respecto al rumbo)</span>
+                  <div style={{ display: "flex", gap: 4, marginTop: 3 }}>
+                    {[["derecha", "Der. (+90°)"], ["izquierda", "Izq. (−90°)"]].map(([v, l]) => (
+                      <button key={v} type="button" onClick={() => ff("dirBuz", v)}
+                        style={{ ...tgStyle(f.dirBuz === v), padding: "6px 4px",
+                          fontSize: 10 }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={secStyle}>· Geometría del recorrido ·</div>
+
+              <label style={lblStyle}>Azimut de la traza (°)
+                <input type="number" step="any" min="0" max="360"
+                  placeholder={sectionAz != null ? `default ${Math.round(sectionAz)}° (de UTM)` : "0–360"}
+                  value={f.azTraza} onChange={e => ff("azTraza", e.target.value)}
+                  style={inputStyle} />
+                <span style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF }}>
+                  Cómo caminaste en el cerro (base→techo). {sectionAz != null
+                    ? <>UTM sugiere <b>{Math.round(sectionAz)}°</b>.</>
+                    : <>Cargá UTM en pestaña Ubicación para autocompletar.</>}
+                </span>
+              </label>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <label style={{ ...lblStyle, flex: 1 }}>Largo en planta dh (m)
+                  <input type="number" step="any" min="0" placeholder="m horizontales"
+                    value={f.dh} onChange={e => ff("dh", e.target.value)}
+                    style={inputStyle} />
+                </label>
+                <label style={{ ...lblStyle, flex: 1 }}>Desnivel Δh (m, absoluto)
+                  <input type="number" step="any" min="0" placeholder="ej: 12.5"
+                    value={f.deltaH} onChange={e => ff("deltaH", e.target.value)}
+                    style={inputStyle} />
+                </label>
+              </div>
+              <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
+                fontStyle: "italic", marginTop: -4 }}>
+                dh = distancia horizontal de la traza · Δh = desnivel topográfico (siempre positivo).
+              </div>
+
+              <div style={lblStyle}>
+                <span>Relación pendiente / buzamiento</span>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  {[["neg", "− Δh·cos δ", "Pendiente cae hacia el MISMO lado del manteo"],
+                    ["pos", "+ Δh·cos δ", "Pendiente cae en sentido CONTRARIO al manteo"]].map(([v, l, d]) => (
+                    <button key={v} type="button" onClick={() => ff("signChoice", v)}
+                      style={{ ...tgStyle(f.signChoice === v), padding: "7px 8px",
+                        fontSize: 10, textAlign: "left", lineHeight: 1.35 }}>
+                      <div style={{ fontFamily: MONO }}>{l}</div>
+                      <div style={{ fontSize: 9, color: T.text3, fontFamily: SERIF, fontStyle: "italic", marginTop: 1 }}>{d}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>)}
+
+            {/* Resultado del cálculo */}
+            <div style={secStyle}>· Resultado ·</div>
+            {(() => {
+              const t = realFor(f);
+              if (t != null && t > 0) {
+                const g = f.thicknessMode !== "manual" ? unitGeometry(f) : null;
+                return (
+                  <div style={{ padding: "10px 12px",
+                    background: (g && g.espesor < 0) ? "#F8D8CC" : "#E3EEDD",
+                    border: `1px solid ${(g && g.espesor < 0) ? T.danger : T.green}`,
+                    borderRadius: 4, fontSize: 12, fontFamily: MONO, color: T.text }}>
+                    <div>Espesor real ≈ <b style={{ fontSize: 16 }}>{t.toFixed(2)} m</b>
+                      <span style={{ fontSize: 10, color: T.text3, marginLeft: 6 }}>
+                        ({f.thicknessMode === "manual" ? "manual" : "Badgley"})
+                      </span>
+                    </div>
+                    {g && g.espesor < 0 && (
+                      <div style={{ color: T.danger, fontSize: 10, marginTop: 3 }}>⚠ Valor negativo — revisá la relación pendiente/buzamiento</div>
+                    )}
+                    {g && isFinite(g.espesor) && (
+                      <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
+                        fontStyle: "italic", marginTop: 3 }}>
+                        γ {g.gamma.toFixed(1)}° · manteo aparente {g.manteoAparente.toFixed(1)}°
+                        · plani {g.termPlani.toFixed(2)} m · topo {g.termTopo.toFixed(2)} m
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div style={{ padding: "8px 10px", background: T.panelAlt,
+                  border: `1px dashed ${T.border}`, borderRadius: 3,
+                  fontSize: 10.5, color: T.text3, fontFamily: SERIF, fontStyle: "italic" }}>
+                  {f.thicknessMode === "manual"
+                    ? "Ingresá el espesor en metros arriba."
+                    : "Cargá rumbo, manteo, dh y Δh para calcular el espesor real."}
+                </div>
+              );
+            })()}
+          </div>
+          </>)}
 
           {panelTab === "units" && (<>
           <div style={{
@@ -1950,53 +2771,40 @@ function ColumnaEstratigrafica() {
           <div style={{ padding: "12px 16px", display: "flex",
                         flexDirection: "column", gap: 9, flex: 1 }}>
 
-            <div style={{ ...secStyle, marginTop: 0, paddingTop: 0,
-                          borderTop: "none" }}>· Litología ·</div>
-
+            {/* Chip de espesor — conectado al tab Espesor */}
             {(() => {
-              const g = unitGeometry(f);
-              if (g && isFinite(g.espesor)) {
-                return (
-                  <div style={{ padding: "8px 10px",
-                    background: g.espesor > 0.01 ? "#E3EEDD" : "#F8D8CC",
-                    border: `1px solid ${g.espesor > 0.01 ? T.green : T.danger}`,
-                    borderRadius: 3, fontSize: 11.5, fontFamily: MONO, color: T.text }}>
-                    Espesor real ≈ <b style={{ fontSize: 14 }}>{Math.abs(g.espesor).toFixed(2)} m</b>
-                    {g.espesor < 0 && (
-                      <span style={{ color: T.danger, marginLeft: 6 }}>(negativo — revisá signo)</span>
-                    )}
-                    <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
-                      fontStyle: "italic", marginTop: 2 }}>
-                      γ {g.gamma.toFixed(1)}° · manteo aparente {g.manteoAparente.toFixed(1)}°
-                      · plani {g.termPlani.toFixed(2)} m · topo {g.termTopo.toFixed(2)} m
-                    </div>
-                  </div>
-                );
-              }
+              const t = realFor(f);
+              const hasVal = t != null && t > 0;
               return (
-                <label style={lblStyle}>Espesor manual (m, fallback)
-                  <input type="number" min="0.01" step="0.1" placeholder="usá orientación + dh + Δh"
-                    value={f.thickness} onChange={e => ff("thickness", e.target.value)}
-                    style={inputStyle} />
-                </label>
+                <button type="button" onClick={() => setPanelTab("thickness")}
+                  style={{
+                    width: "100%", padding: "9px 12px", cursor: "pointer",
+                    background: hasVal ? "#E3EEDD" : "#FFF3E0",
+                    border: `1px solid ${hasVal ? T.green : T.gold}`,
+                    borderRadius: 4, display: "flex", alignItems: "center",
+                    justifyContent: "space-between", gap: 8,
+                    transition: "all .12s",
+                  }}>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: T.text, fontWeight: 600 }}>
+                    {hasVal
+                      ? <>📐 Espesor: {t.toFixed(2)} m <span style={{ fontWeight: 400, fontSize: 10, color: T.text3 }}>({f.thicknessMode === "manual" ? "manual" : "Badgley"})</span></>
+                      : <>⚠ Sin espesor — configurar</>}
+                  </span>
+                  <span style={{ fontSize: 11, color: hasVal ? T.green : T.gold, fontWeight: 600 }}>→</span>
+                </button>
               );
             })()}
 
-            <label style={lblStyle}>Litología
-              <select value={f.lithoId} style={inputStyle}
-                onChange={e => {
-                  const li = findL(e.target.value);
-                  ff("lithoId", e.target.value); ff("grainSize", li[3]);
-                }}>
-                {LITH_GROUPS.map(grp => (
-                  <optgroup key={grp} label={grp}>
-                    {LITH.filter(l => l[4] === grp).map(l => (
-                      <option key={l[0]} value={l[0]}>{l[1]}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+            <div style={secStyle}>· Litología ·</div>
+
+            <div style={lblStyle}>
+              <span>Litología</span>
+              <LithoPicker value={f.lithoId} onChange={id => {
+                const li = findL(id);
+                ff("lithoId", id); ff("grainSize", li[3]);
+                if (id === f.lithoId2) ff("lithoId2", "");
+              }} />
+            </div>
 
             <label style={lblStyle}>Color (Munsell / descriptivo)
               <input type="text" placeholder="5Y 6/2 · gris oliva pálido"
@@ -2048,18 +2856,12 @@ function ColumnaEstratigrafica() {
               {f.lithoId2 && (
                 <div style={{ marginTop: 8, display: "flex",
                   flexDirection: "column", gap: 7 }}>
-                  <label style={lblStyle}>Litología secundaria
-                    <select value={f.lithoId2} style={inputStyle}
-                      onChange={e => ff("lithoId2", e.target.value)}>
-                      {LITH_GROUPS.map(grp => (
-                        <optgroup key={grp} label={grp}>
-                          {LITH.filter(l => l[4] === grp && l[0] !== f.lithoId).map(l => (
-                            <option key={l[0]} value={l[0]}>{l[1]}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </label>
+                  <div style={lblStyle}>
+                    <span>Litología secundaria</span>
+                    <LithoPicker value={f.lithoId2}
+                      onChange={id => ff("lithoId2", id)}
+                      exclude={f.lithoId} />
+                  </div>
                   <label style={lblStyle}>
                     Proporción {Math.round(f.lithoRatio * 100)}% / {Math.round((1 - f.lithoRatio) * 100)}%
                     <input type="range" min="0.1" max="0.9" step="0.05"
@@ -2070,6 +2872,41 @@ function ColumnaEstratigrafica() {
                   <div style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic",
                     fontFamily: SERIF, marginTop: -2 }}>
                     Se visualiza como bandas alternadas en la columna.
+                  </div>
+                  <label style={{ ...lblStyle, flexDirection: "row",
+                    alignItems: "center", gap: 7, cursor: "pointer", marginTop: 4 }}>
+                    <input type="checkbox" checked={f.beddingTrend === "thinning"}
+                      onChange={e => ff("beddingTrend", e.target.checked ? "thinning" : "")}
+                      style={{ cursor: "pointer" }} />
+                    <span style={{ color: f.beddingTrend === "thinning" ? T.rust : T.text2,
+                      fontStyle: "italic", fontSize: 10.5 }}>
+                      Estrato decreciente hacia arriba
+                    </span>
+                  </label>
+                  <div style={{ marginTop: 6, padding: "7px 9px", background: T.card,
+                    border: `1px solid ${T.cardEdge}`, borderRadius: 3 }}>
+                    <div style={{ fontSize: 9.5, color: T.text2, fontFamily: SANS,
+                      fontWeight: 600, marginBottom: 5 }}>Espesores individuales (cm)</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontSize: 9, color: T.text3, whiteSpace: "nowrap", minWidth: 22 }}>Li₁</span>
+                      <input type="number" min="0" step="0.1" placeholder="mín"
+                        value={f.interpLi1MinCm} onChange={e => ff("interpLi1MinCm", e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: "4px 6px", fontSize: 10.5 }} />
+                      <span style={{ fontSize: 9, color: T.text3 }}>–</span>
+                      <input type="number" min="0" step="0.1" placeholder="máx"
+                        value={f.interpLi1MaxCm} onChange={e => ff("interpLi1MaxCm", e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: "4px 6px", fontSize: 10.5 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+                      <span style={{ fontSize: 9, color: T.text3, whiteSpace: "nowrap", minWidth: 22 }}>Li₂</span>
+                      <input type="number" min="0" step="0.1" placeholder="mín"
+                        value={f.interpLi2MinCm} onChange={e => ff("interpLi2MinCm", e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: "4px 6px", fontSize: 10.5 }} />
+                      <span style={{ fontSize: 9, color: T.text3 }}>–</span>
+                      <input type="number" min="0" step="0.1" placeholder="máx"
+                        value={f.interpLi2MaxCm} onChange={e => ff("interpLi2MaxCm", e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: "4px 6px", fontSize: 10.5 }} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -2088,118 +2925,61 @@ function ColumnaEstratigrafica() {
                 style={inputStyle} />
             </label>
 
-            <div style={secStyle}>· Orientación del estrato ·</div>
-
-            <label style={lblStyle}>Rumbo (azimut 0–360° o cuadrantal N30°E)
-              {(() => {
-                const az = parseRumbo(f.rumbo);
-                const err = f.rumbo.trim() !== "" && az == null;
-                return (
-                  <>
-                    <input type="text" placeholder="ej: 320  ·  N40°W  ·  040"
-                      value={f.rumbo} onChange={e => ff("rumbo", e.target.value)}
-                      style={{ ...inputStyle, borderColor: err ? T.danger : T.inputBd }} />
-                    {err && <span style={{ color: T.danger, fontSize: 9.5 }}>Formato no reconocido</span>}
-                    {!err && az != null && <span style={{ color: T.green, fontSize: 9.5 }}>→ Azimut {az.toFixed(1)}°</span>}
-                  </>
-                );
-              })()}
-            </label>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <label style={{ ...lblStyle, flex: 1 }}>Manteo δ (°)
-                <input type="number" step="any" min="0" max="90" placeholder="0–90"
-                  value={f.manteo} onChange={e => ff("manteo", e.target.value)}
-                  style={inputStyle} />
-              </label>
-              <div style={{ ...lblStyle, flex: 1.3 }}>
-                <span>Dir. buzamiento (respecto al rumbo)</span>
-                <div style={{ display: "flex", gap: 4, marginTop: 3 }}>
-                  {[["derecha", "Der. (+90°)"], ["izquierda", "Izq. (−90°)"]].map(([v, l]) => (
-                    <button key={v} type="button" onClick={() => ff("dirBuz", v)}
-                      style={{
-                        flex: 1, padding: "6px 4px", fontSize: 10, cursor: "pointer",
-                        background: f.dirBuz === v ? "#E3EEDD" : T.inputBg,
-                        border: `1px solid ${f.dirBuz === v ? T.green : T.inputBd}`,
-                        color: f.dirBuz === v ? T.green : T.text2,
-                        borderRadius: 3, fontWeight: f.dirBuz === v ? 700 : 500,
-                      }}>{l}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div style={secStyle}>· Geometría del recorrido ·</div>
-
-            <label style={lblStyle}>Azimut de la traza (°)
-              <input type="number" step="any" min="0" max="360"
-                placeholder={sectionAz != null ? `default ${Math.round(sectionAz)}° (de UTM)` : "0–360"}
-                value={f.azTraza} onChange={e => ff("azTraza", e.target.value)}
-                style={inputStyle} />
-              <span style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF }}>
-                Cómo caminaste en el cerro (base→techo). {sectionAz != null
-                  ? <>UTM sugiere <b>{Math.round(sectionAz)}°</b>.</>
-                  : <>Cargá UTM en pestaña Ubicación para autocompletar.</>}
-              </span>
-            </label>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <label style={{ ...lblStyle, flex: 1 }}>Largo en planta dh (m)
-                <input type="number" step="any" min="0" placeholder="m horizontales"
-                  value={f.dh} onChange={e => ff("dh", e.target.value)}
-                  style={inputStyle} />
-              </label>
-              <label style={{ ...lblStyle, flex: 1 }}>Desnivel Δh (m, con signo)
-                <input type="number" step="any" placeholder="+ subo  /  − bajo"
-                  value={f.deltaH} onChange={e => ff("deltaH", e.target.value)}
-                  style={inputStyle} />
-              </label>
-            </div>
-            <div style={{ fontSize: 9.5, color: T.text3, fontFamily: SERIF,
-              fontStyle: "italic", marginTop: -4 }}>
-              dh = distancia horizontal de la traza · Δh positivo si la traza asciende.
-            </div>
-
-            <div style={lblStyle}>
-              <span>Signo de la corrección topográfica</span>
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {[["neg", "− Δh·cos δ", "Traza asciende en el MISMO sentido del buzamiento"],
-                  ["pos", "+ Δh·cos δ", "Traza asciende en sentido CONTRARIO al buzamiento"]].map(([v, l, d]) => (
-                  <button key={v} type="button" onClick={() => ff("signChoice", v)}
-                    style={{
-                      flex: 1, padding: "7px 8px", fontSize: 10, cursor: "pointer",
-                      background: f.signChoice === v ? "#E3EEDD" : T.inputBg,
-                      border: `1px solid ${f.signChoice === v ? T.green : T.inputBd}`,
-                      color: f.signChoice === v ? T.green : T.text2,
-                      borderRadius: 3, fontWeight: f.signChoice === v ? 700 : 500,
-                      textAlign: "left", lineHeight: 1.35,
-                    }}>
-                    <div style={{ fontFamily: MONO }}>{l}</div>
-                    <div style={{ fontSize: 9, color: T.text3, fontFamily: SERIF, fontStyle: "italic", marginTop: 1 }}>{d}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div style={secStyle}>· Sedimentología ·</div>
 
             <div style={lblStyle}>
-              <span>Estructuras — símbolos</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
-                gap: 4, marginTop: 3 }}>
-                {STRUCTS.map(s => {
-                  const on = (f.structSymbols || []).includes(s[0]);
+              <span>Estructuras — símbolos
+                {(f.structSymbols || []).length > 0 && (
+                  <span style={{ marginLeft: 6, color: T.green, fontSize: 10, fontWeight: 700 }}>
+                    {(f.structSymbols || []).length} sel.
+                  </span>
+                )}
+              </span>
+              <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
+                background: T.inputBg }}>
+                {STRUCT_GROUPS.map(g => {
+                  const groupItems = STRUCTS.filter(s => s[2] === g);
+                  const activeInGroup = groupItems.filter(s => (f.structSymbols || []).includes(s[0])).length;
+                  const isOpen = openStructGroups.has(g);
                   return (
-                    <button key={s[0]} type="button" title={s[1]}
-                      onClick={() => toggleStruct(s[0])}
-                      style={{ display: "flex", alignItems: "center",
-                        justifyContent: "center", padding: 2, cursor: "pointer",
-                        borderRadius: 3, aspectRatio: "1",
-                        border: `1px solid ${on ? T.green : T.border}`,
-                        background: on ? "#E3EEDD" : T.inputBg,
-                        boxShadow: on ? `inset 0 0 0 1px ${T.green}` : "none" }}>
-                      <StructIcon id={s[0]} size={20} />
-                    </button>
+                    <div key={g}>
+                      <button
+                        type="button"
+                        onClick={() => toggleStructGroup(g)}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "5px 8px", background: T.panelAlt,
+                          border: "none", borderBottom: `1px solid ${T.border}`,
+                          cursor: "pointer", textAlign: "left", minHeight: 34 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: T.text3,
+                          letterSpacing: "0.04em", textTransform: "uppercase" }}>{g}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {activeInGroup > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.green,
+                              background: "#D6EDD5", borderRadius: 8, padding: "1px 5px" }}>
+                              {activeInGroup}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, color: T.text3 }}>{isOpen ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {isOpen && groupItems.map(s => {
+                        const on = (f.structSymbols || []).includes(s[0]);
+                        return (
+                          <label key={s[0]} style={{ display: "flex", alignItems: "center",
+                            gap: 7, padding: "5px 8px", cursor: "pointer",
+                            background: on ? "#E8F2E3" : "transparent",
+                            borderBottom: `1px solid ${T.cardEdge}`,
+                            minHeight: 34 }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => toggleStruct(s[0])}
+                              style={{ cursor: "pointer", accentColor: T.green, width: 16, height: 16 }} />
+                            <StructIcon id={s[0]} size={18} />
+                            <span style={{ fontSize: 11, color: on ? T.green : T.text,
+                              fontWeight: on ? 600 : 400, flex: 1 }}>{s[1]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   );
                 })}
               </div>
@@ -2217,6 +2997,95 @@ function ColumnaEstratigrafica() {
                 style={inputStyle} />
             </label>
 
+            <div style={lblStyle}>
+              <span>Índice de bioturbación (BI)
+                {f.bioturbIndex != null && (
+                  <span style={{ marginLeft: 6, color: T.indigo, fontSize: 10, fontWeight: 700 }}>
+                    BI = {f.bioturbIndex}
+                  </span>
+                )}
+              </span>
+              <div style={{ display: "flex", gap: 3, marginTop: 3 }}>
+                {[null,0,1,2,3,4,5,6].map(v => {
+                  const lbl = v == null ? "–" : String(v);
+                  const on  = f.bioturbIndex === v;
+                  return (
+                    <button key={lbl} type="button"
+                      onPointerDown={e => { e.preventDefault(); ff("bioturbIndex", v); }}
+                      style={{ flex: 1, padding: "5px 2px", fontSize: 11, fontFamily: MONO,
+                        border: `1px solid ${on ? T.indigo : T.border}`,
+                        borderRadius: 3, cursor: "pointer", minHeight: 30,
+                        background: on ? "#DDEAF5" : T.inputBg,
+                        color: on ? T.indigo : T.text2, fontWeight: on ? 700 : 400 }}>
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
+              <span style={{ fontSize: 9, color: T.text3, marginTop: 2 }}>
+                0 sin bioturb. · 3 ~50% · 6 completa (Droser &amp; Bottjer 1986)
+              </span>
+            </div>
+
+            <div style={lblStyle}>
+              <span>Trazas fósiles / Icnofácies
+                {(f.traceIchnos || []).length > 0 && (
+                  <span style={{ marginLeft: 6, color: T.indigo, fontSize: 10, fontWeight: 700 }}>
+                    {(f.traceIchnos || []).length} sel.
+                  </span>
+                )}
+              </span>
+              <div style={{ marginTop: 3, border: `1px solid ${T.border}`, borderRadius: 3,
+                background: T.inputBg }}>
+                {ICHNO_GROUPS.map(g => {
+                  const groupItems = ICHNO_TYPES.filter(t => t[2] === g);
+                  const activeInGroup = groupItems.filter(t => (f.traceIchnos || []).includes(t[0])).length;
+                  const isOpen = openIchnoGroups.has(g);
+                  return (
+                    <div key={g}>
+                      <button type="button"
+                        onPointerDown={e => { e.preventDefault(); toggleIchnoGroup(g); }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                          width: "100%", padding: "5px 8px", background: T.panelAlt,
+                          border: "none", borderBottom: `1px solid ${T.border}`,
+                          cursor: "pointer", textAlign: "left", minHeight: 34 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: T.indigo,
+                          letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                          Icnofacies {g}
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          {activeInGroup > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: T.indigo,
+                              background: "#DDEAF5", borderRadius: 8, padding: "1px 5px" }}>
+                              {activeInGroup}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, color: T.text3 }}>{isOpen ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {isOpen && groupItems.map(t => {
+                        const on = (f.traceIchnos || []).includes(t[0]);
+                        return (
+                          <label key={t[0]} style={{ display: "flex", alignItems: "center",
+                            gap: 7, padding: "5px 8px", cursor: "pointer",
+                            background: on ? "#DDEAF5" : "transparent",
+                            borderBottom: `1px solid ${T.cardEdge}`,
+                            minHeight: 34 }}>
+                            <input type="checkbox" checked={on}
+                              onChange={() => toggleIchno(t[0])}
+                              style={{ cursor: "pointer", accentColor: T.indigo, width: 16, height: 16 }} />
+                            <IchnoIcon id={t[0]} size={18} />
+                            <span style={{ fontSize: 11, color: on ? T.indigo : T.text,
+                              fontWeight: on ? 600 : 400, flex: 1 }}>{t[1]}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div style={secStyle}>· Contacto & Ambiente ·</div>
 
             <label style={lblStyle}>Tipo de contacto basal
@@ -2230,7 +3099,11 @@ function ColumnaEstratigrafica() {
               <select value={f.environment} style={inputStyle}
                 onChange={e => ff("environment", e.target.value)}>
                 <option value="">— seleccionar —</option>
-                {ENVS.map(e => <option key={e} value={e}>{e}</option>)}
+                {ENV_GROUPS.map(g => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.envs.map(e => <option key={e} value={e}>{e}</option>)}
+                  </optgroup>
+                ))}
               </select>
             </label>
 
@@ -2286,6 +3159,56 @@ function ColumnaEstratigrafica() {
                 value={f.photoCaption} onChange={e => ff("photoCaption", e.target.value)}
                 style={inputStyle} />
             </label>
+
+            {/* ── Modificadores de zona ── */}
+            {(f => {
+              const hasMod = f.modTecho?.type || f.modMuro?.type;
+              const maxCm = Math.floor((parseFloat(f.thickness) || 0) * 100);
+              const modRow = (pos, label) => {
+                const key = pos === "techo" ? "modTecho" : "modMuro";
+                const val = f[key] || {};
+                const setField = (field, v) => ff(key, { ...val, [field]: v });
+                const setType  = t => ff(key, t ? { type: t, cm: val.cm || Math.max(1, Math.round(maxCm * 0.15)), notes: val.notes || "" } : null);
+                return (
+                  <div key={pos} style={{ display: "flex", gap: 5, alignItems: "center", marginBottom: 5, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, color: T.text3, minWidth: 36 }}>{label}</span>
+                    <select value={val.type || ""} onChange={e => setType(e.target.value || null)}
+                      style={{ ...inputStyle, flex: 1, minWidth: 120, padding: "3px 5px" }}>
+                      <option value="">— sin modificador —</option>
+                      {MOD_TYPES.map(m => <option key={m[0]} value={m[0]}>{m[1]}</option>)}
+                    </select>
+                    {val.type && <>
+                      <input type="number" min="1" max={maxCm || 1} value={val.cm || ""}
+                        onChange={e => setField("cm", Math.min(Math.max(1, parseInt(e.target.value) || 1), maxCm || 1))}
+                        style={{ ...inputStyle, width: 56 }} placeholder="cm" title={`máx ${maxCm} cm`} />
+                      <span style={{ fontSize: 9, color: T.text3 }}>cm</span>
+                      <input type="text" value={val.notes || ""} maxLength={120}
+                        onChange={e => setField("notes", e.target.value)}
+                        style={{ ...inputStyle, flex: 2, minWidth: 80 }} placeholder="notas…" />
+                    </>}
+                  </div>
+                );
+              };
+              return (
+                <div style={{ marginTop: 8, border: `1px solid ${T.border}`, borderRadius: 4 }}>
+                  <button type="button" onClick={() => setModOpen(o => !o)} style={{
+                    width: "100%", background: T.panel, border: "none", textAlign: "left",
+                    padding: "5px 10px", cursor: "pointer", fontSize: 10.5,
+                    color: T.text2, fontFamily: SANS, display: "flex", justifyContent: "space-between" }}>
+                    <span>⚗ Modificadores de zona{hasMod ? " ●" : ""}</span>
+                    <span>{modOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {modOpen && (
+                    <div style={{ padding: "8px 10px" }}>
+                      {maxCm < 1 && <div style={{ fontSize: 9.5, color: T.text3, marginBottom: 6 }}>
+                        Ingresá el espesor de la unidad primero.</div>}
+                      {modRow("techo", "Techo")}
+                      {modRow("muro",  "Base")}
+                    </div>
+                  )}
+                </div>
+              );
+            })(f)}
 
             <div style={{ display: "flex", gap: 6, marginTop: 14, marginBottom: 4 }}>
               {editId ? (
@@ -2345,6 +3268,8 @@ function ColumnaEstratigrafica() {
                       </div>
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                         <button onClick={() => doEdit(u)} style={btnSmall}>editar</button>
+                        <button onClick={() => doDup(u.id)} style={btnSmall}
+                          title="Duplicar (copia encima)">⧉</button>
                         <button onClick={() => doMove(u.id, -1)} disabled={i === 0}
                           style={btnSmall} title="Hacia la base">▲</button>
                         <button onClick={() => doMove(u.id, +1)}
@@ -2365,6 +3290,7 @@ function ColumnaEstratigrafica() {
         {/* ═══ COLUMN PANEL ═══ */}
         <div style={{ flex: 1, overflow: "auto",
                       padding: isNarrow ? "12px" : "20px 24px",
+                      paddingBottom: isNarrow ? "calc(12px + env(safe-area-inset-bottom))" : undefined,
                       minWidth: 0, minHeight: 0,
                       display: (!isNarrow || mobileView === "column") ? "flex" : "none",
                       flexDirection: "column" }}>
@@ -2381,13 +3307,17 @@ function ColumnaEstratigrafica() {
               <div style={{ fontFamily: SERIF, fontStyle: "italic",
                             fontSize: 17, color: T.text }}>Listo para comenzar</div>
               <div style={{ fontSize: 12, lineHeight: 1.7 }}>
-                Ingrese unidades en el panel izquierdo de <i>base → techo</i>,<br/>
-                o cargue un archivo CSV para construir la columna.
+                {isNarrow
+                  ? <>Ingrese unidades en el panel de la izquierda<br/>de <i>base → techo</i> para construir la columna.</>
+                  : <>Ingrese unidades en el panel izquierdo de <i>base → techo</i>,<br/>
+                     o cargue un archivo CSV para construir la columna.</>}
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <button onClick={downloadTemplate} style={btnBase}>⬇ Descargar template</button>
-                <button onClick={() => csvInputRef.current?.click()} style={btnPrimary}>⬆ Cargar CSV</button>
-              </div>
+              {!isNarrow && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={downloadTemplate} style={btnBase}>⬇ Descargar template</button>
+                  <button onClick={() => csvInputRef.current?.click()} style={btnPrimary}>⬆ Cargar CSV</button>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -2563,17 +3493,77 @@ function ColumnaEstratigrafica() {
                 <rect x={STX} y={MT} width={STW} height={totalH * SPX}
                   fill="#FBF6E6" stroke={T.border} strokeWidth="0.8" />
 
+                {/* Pista de índice de bioturbación */}
+                <text x={BTX + BTW / 2} y={MT - 16} textAnchor="middle" style={{
+                  fontSize: 8, fontFamily: MONO, fill: T.indigo, fontStyle: "italic" }}>BI</text>
+                <rect x={BTX} y={MT} width={BTW} height={totalH * SPX}
+                  fill="#F4F8FC" stroke={T.border} strokeWidth="0.8" />
+
+                {/* Pista de icnofósiles */}
+                <text x={ITX + ITW / 2} y={MT - 16} textAnchor="middle" style={{
+                  fontSize: 8, fontFamily: MONO, fill: T.indigo, fontStyle: "italic" }}>icno</text>
+                <rect x={ITX} y={MT} width={ITW} height={totalH * SPX}
+                  fill="#F4F8FC" stroke={T.border} strokeWidth="0.8" />
+
                 <g clipPath="url(#colclip)">
                   {units.map((u, i) => {
                     const topY = yOf(cumH[i] + u.thickness);
                     const hpx  = u.thickness * SPX;
                     const li   = findL(u.lithoId);
                     const gi   = findG(u.grainSize);
-                    const uw   = u.lithoId === "covered" ? CW : CW * gi[2];
+                    const isCov = u.lithoId === "covered";
+                    const uw   = isCov ? CW * GRAIN[0][2] : CW * gi[2];
                     const hasInter = u.lithoId2 && u.lithoId2 !== u.lithoId;
+                    const mw = hasInter ? Math.max(uw, CW * findG(findL(u.lithoId2)[3])[2]) : uw;
+                    const modOverlays = (() => {
+                      const els = [];
+                      const maxCm = u.thickness * 100;
+                      if (u.modTecho?.type) {
+                        const mT = MOD_TYPES.find(m => m[0] === u.modTecho.type);
+                        if (mT) {
+                          const hm = Math.min(u.modTecho.cm, maxCm) / 100 * SPX;
+                          els.push(
+                            <rect key="mt" x={CX} y={topY} width={mw} height={hm}
+                              fill={`url(#${mT[2]})`} fillOpacity="0.72"/>,
+                            <line key="mtl" x1={CX} y1={topY + hm} x2={CX + mw} y2={topY + hm}
+                              stroke="#5C3D1A" strokeWidth="0.8" strokeDasharray="3,2"/>
+                          );
+                        }
+                      }
+                      if (u.modMuro?.type) {
+                        const mM = MOD_TYPES.find(m => m[0] === u.modMuro.type);
+                        if (mM) {
+                          const hm = Math.min(u.modMuro.cm, maxCm) / 100 * SPX;
+                          els.push(
+                            <rect key="mm" x={CX} y={topY + hpx - hm} width={mw} height={hm}
+                              fill={`url(#${mM[2]})`} fillOpacity="0.72"/>,
+                            <line key="mml" x1={CX} y1={topY + hpx - hm} x2={CX + mw} y2={topY + hpx - hm}
+                              stroke="#5C3D1A" strokeWidth="0.8" strokeDasharray="3,2"/>
+                          );
+                        }
+                      }
+                      return els;
+                    })();
 
                     if (!hasInter) {
-                      if (edgeStyle === "freehand" && u.lithoId !== "covered") {
+                      // Cubierto / sin afloramiento → franja angosta, fondo blanco, cruz
+                      if (isCov) {
+                        return (
+                          <g key={u.id}>
+                            <rect x={CX} y={topY} width={CW} height={hpx}
+                              fill={T.card} opacity="0.94" />
+                            <rect x={CX} y={topY} width={uw} height={hpx}
+                              fill="white" stroke={T.border} strokeWidth="0.6" />
+                            {hpx > 10 && <>
+                              <line x1={CX + 2} y1={topY + 2} x2={CX + uw - 2} y2={topY + hpx - 2}
+                                stroke={T.text3} strokeWidth="0.9" />
+                              <line x1={CX + uw - 2} y1={topY + 2} x2={CX + 2} y2={topY + hpx - 2}
+                                stroke={T.text3} strokeWidth="0.9" />
+                            </>}
+                          </g>
+                        );
+                      }
+                      if (edgeStyle === "freehand") {
                         const xr = Math.min(CX + uw, CX + CW - EDGE_MARGIN);
                         return (
                           <g key={u.id}>
@@ -2581,6 +3571,7 @@ function ColumnaEstratigrafica() {
                               fill={T.card} opacity="0.94" />
                             <path d={freehandUnitPath(CX, xr, topY, hpx, i + 1)}
                               fill={`url(#${li[2]})`} />
+                            {modOverlays}
                           </g>
                         );
                       }
@@ -2591,6 +3582,7 @@ function ColumnaEstratigrafica() {
                             <rect x={CX + uw} y={topY} width={CW - uw} height={hpx}
                               fill={T.card} opacity="0.94" />
                           )}
+                          {modOverlays}
                         </g>
                       );
                     }
@@ -2599,22 +3591,26 @@ function ColumnaEstratigrafica() {
                     // Cada litología conserva el ancho de SU granulometría → perfil dentado.
                     const li2    = findL(u.lithoId2);
                     const ratio  = u.lithoRatio ?? 0.5;
-                    const uwA    = uw;                     // principal (granulometría de la unidad)
-                    const uwB    = CW * findG(li2[3])[2];  // secundaria (su grano por defecto)
+                    const uwA    = uw;
+                    const uwB    = CW * findG(li2[3])[2];
                     const nCyc   = Math.max(2, Math.min(28, Math.floor(hpx / 30)));
-                    const cycH   = hpx / nCyc;
-                    const aH     = cycH * ratio;
-                    // Bandas delgadas → más sinuosidad (fscale) y menor amplitud,
-                    // para que no se vea tosco.
-                    const bhA = aH, bhB = cycH - aH;
-                    const fsA = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhA)));
-                    const fsB = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhB)));
-                    const asA = Math.max(0.7, Math.min(1, bhA / 22));
-                    const asB = Math.max(0.7, Math.min(1, bhB / 22));
+                    const isThin = u.beddingTrend === "thinning";
+                    // Estrato decreciente: k=0 (techo, delgado) → k=nCyc-1 (base, grueso)
+                    // Peso de banda k: (k+1) — crece hacia la base.
+                    const totalW = isThin ? nCyc * (nCyc + 1) / 2 : 0;
                     const bands  = [];
                     const fh = edgeStyle === "freehand";
+                    let yPos = topY;
                     for (let k = 0; k < nCyc; k++) {
-                      const yStart = topY + k * cycH;
+                      const cycH_k = isThin ? hpx * (k + 1) / totalW : hpx / nCyc;
+                      const yStart = yPos;
+                      yPos += cycH_k;
+                      const aH     = cycH_k * ratio;
+                      const bhA = aH, bhB = cycH_k - aH;
+                      const fsA = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhA)));
+                      const fsB = Math.max(1, Math.min(2.8, 26 / Math.max(2, bhB)));
+                      const asA = Math.max(0.7, Math.min(1, bhA / 22));
+                      const asB = Math.max(0.7, Math.min(1, bhB / 22));
                       bands.push(
                         fh
                           ? <path key={`${u.id}-a${k}`} fill={`url(#${li[2]})`}
@@ -2623,9 +3619,9 @@ function ColumnaEstratigrafica() {
                               width={uwA} height={aH} fill={`url(#${li[2]})`} />,
                         fh
                           ? <path key={`${u.id}-b${k}`} fill={`url(#${li2[2]})`}
-                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH - aH, i + 101, fsB, asB)} />
+                              d={freehandUnitPath(CX, Math.min(CX + uwB, CX + CW - EDGE_MARGIN), yStart + aH, cycH_k - aH, i + 101, fsB, asB)} />
                           : <rect key={`${u.id}-b${k}`} x={CX} y={yStart + aH}
-                              width={uwB} height={cycH - aH} fill={`url(#${li2[2]})`} />,
+                              width={uwB} height={cycH_k - aH} fill={`url(#${li2[2]})`} />,
                         <line key={`${u.id}-s${k}`} x1={CX} y1={yStart + aH}
                           x2={CX + Math.max(uwA, uwB)} y2={yStart + aH}
                           stroke="rgba(0,0,0,0.22)" strokeWidth="0.4" />
@@ -2636,6 +3632,7 @@ function ColumnaEstratigrafica() {
                         <rect x={CX} y={topY} width={CW} height={hpx}
                           fill={T.card} opacity="0.94" />
                         {bands}
+                        {modOverlays}
                       </g>
                     );
                   })}
@@ -2644,10 +3641,15 @@ function ColumnaEstratigrafica() {
                 {units.map((u, i) => {
                   if (i === 0) return null;
                   const y = yOf(cumH[i]);
+                  // Ancho del contacto = max entre la unidad inferior (i) y la superior (i-1)
+                  const uwU = u.lithoId === "covered" ? CW * GRAIN[0][2] : CW * findG(u.grainSize)[2];
+                  const uwP = units[i-1].lithoId === "covered" ? CW * GRAIN[0][2] : CW * findG(units[i-1].grainSize)[2];
+                  const cx2 = CX + Math.max(uwU, uwP);
                   return (
-                    <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, CX + CW, y)}
+                    <path key={`c${u.id}`} d={cPath(u.contactBottom, CX, cx2, y)}
                       fill="none" stroke={cClr(u.contactBottom)}
-                      strokeWidth={cWid(u.contactBottom)} strokeLinecap="round" />
+                      strokeWidth={cWid(u.contactBottom)} strokeLinecap="round"
+                      strokeDasharray={cDash(u.contactBottom)} />
                   );
                 })}
 
@@ -2679,16 +3681,88 @@ function ColumnaEstratigrafica() {
                     const hpx  = u.thickness * SPX;
                     const midY = topY + hpx / 2;
                     const gs   = 20;
+                    const cx   = STX + STW / 2;
+                    // Gradación normal/inversa → triángulo de altura completa del estrato
+                    const hasGN = syms.includes("graded_normal");
+                    const hasGR = syms.includes("graded_reverse");
+                    const others = syms.filter(s => s !== "graded_normal" && s !== "graded_reverse");
                     const maxN = Math.max(1, Math.floor(hpx / gs));
-                    const shown = syms.slice(0, maxN);
-                    const cx = STX + STW / 2;
+                    const shown = others.slice(0, maxN);
                     const y0 = midY - (shown.length - 1) * gs / 2;
-                    return shown.map((sid, j) => (
-                      <g key={`${u.id}sym${j}`}
-                        transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 24})`}>
-                        {glyphEls(sid, `${u.id}_${j}`)}
+                    const tx1 = STX + 3, tx2 = STX + STW - 3, tcx = STX + STW / 2;
+                    return (
+                      <g key={`${u.id}str`}>
+                        {hasGN && (
+                          // Normal: base ancha abajo, vértice arriba
+                          <path d={`M${tx1},${topY+hpx} L${tx2},${topY+hpx} L${tcx},${topY} Z`}
+                            fill="rgba(110,70,20,0.28)" stroke={T.ink} strokeWidth="0.7" />
+                        )}
+                        {hasGR && (
+                          // Inversa: base ancha arriba, vértice abajo
+                          <path d={`M${tcx},${topY+hpx} L${tx1},${topY} L${tx2},${topY} Z`}
+                            fill="rgba(110,70,20,0.28)" stroke={T.ink} strokeWidth="0.7" />
+                        )}
+                        {shown.map((sid, j) => (
+                          <g key={`${u.id}sym${j}`}
+                            transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 24})`}>
+                            {glyphEls(sid, `${u.id}_${j}`)}
+                          </g>
+                        ))}
                       </g>
-                    ));
+                    );
+                  })}
+                </g>
+
+                {/* BI bars */}
+                <g clipPath="url(#biclip)">
+                  {units.map((u, i) => {
+                    if (u.bioturbIndex == null) return null;
+                    const topY = yOf(cumH[i] + u.thickness);
+                    const hpx  = u.thickness * SPX;
+                    const barW = (u.bioturbIndex / 6) * BTW;
+                    const biColor = u.bioturbIndex <= 1 ? "#A8C8E8"
+                      : u.bioturbIndex <= 3 ? "#6699BB"
+                      : u.bioturbIndex <= 5 ? "#336699"
+                      : "#1A4466";
+                    return (
+                      <g key={`${u.id}bi`}>
+                        <rect x={BTX} y={topY} width={barW} height={Math.max(1, hpx)}
+                          fill={biColor} fillOpacity="0.7" />
+                        {hpx > 14 && (
+                          <text x={BTX + BTW / 2} y={topY + hpx / 2 + 3.5}
+                            textAnchor="middle" style={{ fontSize: 8,
+                              fontFamily: MONO, fill: "#1A4466", fontWeight: 600 }}>
+                            {u.bioturbIndex}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+
+                {/* Icnofósiles */}
+                <g clipPath="url(#ichnoclip)">
+                  {units.map((u, i) => {
+                    const ichnos = (u.traceIchnos || []).filter(findI);
+                    if (!ichnos.length) return null;
+                    const topY = yOf(cumH[i] + u.thickness);
+                    const hpx  = u.thickness * SPX;
+                    const midY = topY + hpx / 2;
+                    const gs   = 22;
+                    const cx   = ITX + ITW / 2;
+                    const maxN = Math.max(1, Math.floor(hpx / gs));
+                    const shown = ichnos.slice(0, maxN);
+                    const y0 = midY - (shown.length - 1) * gs / 2;
+                    return (
+                      <g key={`${u.id}icn`}>
+                        {shown.map((iid, j) => (
+                          <g key={`${u.id}icn${j}`}
+                            transform={`translate(${cx},${y0 + j * gs}) scale(${gs / 26})`}>
+                            {ichnoGlyphEls(iid, `${u.id}_i${j}`)}
+                          </g>
+                        ))}
+                      </g>
+                    );
                   })}
                 </g>
 
@@ -2773,7 +3847,8 @@ function ColumnaEstratigrafica() {
                     return (
                       <g key={ct} transform={`translate(${lx},${ly})`}>
                         <path d={cPath(ct, 0, 55, 0)} fill="none"
-                          stroke={cClr(ct)} strokeWidth={cWid(ct)} />
+                          stroke={cClr(ct)} strokeWidth={cWid(ct)}
+                          strokeDasharray={cDash(ct)} />
                         <text x={62} y={4} style={{ fontSize: 10, fontFamily: SANS,
                           fill: T.text2 }}>{name}</text>
                       </g>
@@ -2829,6 +3904,66 @@ function ColumnaEstratigrafica() {
                               stroke="#FCF7E8" strokeWidth="0.6" />
                             <text x={18} y={9} style={{ fontSize: 9.5, fontFamily: SANS,
                               fill: T.text2 }}>{t[1]}</text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
+                  {usedMods.length > 0 && (
+                    <g transform={`translate(0,${modsTopY})`}>
+                      <text x={0} y={0} style={{ fontSize: 12, fontFamily: SERIF,
+                        fontStyle: "italic", fill: T.text, fontWeight: 600 }}>
+                        Modificadores de zona</text>
+                      <line x1={0} y1={4} x2={200} y2={4} stroke={T.gold} strokeWidth=".8" />
+                      {usedMods.map((m, i) => {
+                        const lx = (i % 2) * 270, ly = 18 + Math.floor(i / 2) * 17;
+                        return (
+                          <g key={m[0]} transform={`translate(${lx},${ly})`}>
+                            <rect width="22" height="12" fill={`url(#${m[2]})`} fillOpacity="0.72"
+                              stroke={T.ink} strokeWidth=".5" />
+                            <text x={28} y={10} style={{ fontSize: 9.5, fontFamily: SANS,
+                              fill: T.text2 }}>{m[1]}</text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
+                  {usedIchno.length > 0 && (
+                    <g transform={`translate(0,${ichnoTopY})`}>
+                      <text x={0} y={0} style={{ fontSize: 12, fontFamily: SERIF,
+                        fontStyle: "italic", fill: T.text, fontWeight: 600 }}>
+                        Trazas fósiles / Icnofácies</text>
+                      <line x1={0} y1={4} x2={200} y2={4} stroke={T.gold} strokeWidth=".8" />
+                      {usedIchno.map((t, i) => {
+                        const lx = (i % 2) * 270, ly = 18 + Math.floor(i / 2) * 17;
+                        return (
+                          <g key={t[0]} transform={`translate(${lx},${ly})`}>
+                            <g transform="translate(10,5) scale(0.5)">{ichnoGlyphEls(t[0], `lg${t[0]}`)}</g>
+                            <text x={28} y={9} style={{ fontSize: 9.5, fontFamily: SANS,
+                              fill: T.text2 }}>{t[1]}</text>
+                          </g>
+                        );
+                      })}
+                    </g>
+                  )}
+
+                  {hasBI && (
+                    <g transform={`translate(0,${biTopY})`}>
+                      <text x={0} y={0} style={{ fontSize: 12, fontFamily: SERIF,
+                        fontStyle: "italic", fill: T.text, fontWeight: 600 }}>
+                        Índice de bioturbación (BI)</text>
+                      <line x1={0} y1={4} x2={200} y2={4} stroke={T.gold} strokeWidth=".8" />
+                      {[0,1,2,3,4,5,6].map(v => {
+                        const biColor = v <= 1 ? "#A8C8E8" : v <= 3 ? "#6699BB" : v <= 5 ? "#336699" : "#1A4466";
+                        const desc = ["Sin bioturbación","<10 % bioturbado","10–40 %","40–60 %","60–90 %",">90 %","Bioturbación completa"][v];
+                        return (
+                          <g key={v} transform={`translate(${(v % 4) * 130},${18 + Math.floor(v / 4) * 16})`}>
+                            <rect width="14" height="10" fill={biColor} fillOpacity="0.8"
+                              stroke={T.ink} strokeWidth=".5" />
+                            <text x={20} y={9} style={{ fontSize: 9, fontFamily: MONO,
+                              fill: T.text2 }}><tspan fontWeight="700">{v}</tspan> {desc}</text>
                           </g>
                         );
                       })}
@@ -2920,11 +4055,11 @@ function ColumnaEstratigrafica() {
               · Para lavas e intrusivos use <code>coherent</code> en grainSize (columna ancha, no clástica).<br/>
               · Lapilli = <code>granule</code> (2–64 mm); bloques/bombas = <code>cobble</code> (&gt;64 mm); ceniza = <code>silt</code>/<code>clay</code>.<br/>
               · <b>Intercalaciones:</b> rellene <code>lithology2</code> con la litología secundaria y <code>lithoRatio</code> entre 0.1–0.9 (proporción de la primaria). Se renderizan como bandas alternadas en la columna.<br/>
-              · Distinguir <code>lapilli_tuff</code> (piroclástica, fragmentos angulosos en matriz cinerítica) de <code>lapillite</code> (epiclástica, clastos redondeados retrabajados).<br/>
+              · Distinguir <code>toba_lapilli</code> (piroclástica, fragmentos angulosos en matriz cinerítica) de <code>lapillite</code> (tufita, clastos redondeados retrabajados).<br/>
               · Campos con comas o saltos de línea van entre <code>"comillas"</code>.<br/>
               · El orden del CSV define base → techo (primera fila = base).<br/>
               · Cargar CSV reemplaza la columna actual. Valores no reconocidos usan defaults.<br/>
-              · Aliases aceptados: <code>tuff</code>→toba de ceniza, <code>volcanic_breccia</code>→brecha volcánica.
+              · Aliases aceptados (CSV y .col.json viejos): <code>tuff</code>/<code>ash_tuff</code>→toba_ceniza, <code>lapilli_tuff</code>→toba_lapilli, <code>ignimbrite</code>→toba_ceniza, <code>volcanic_breccia</code>→brecha_pirocl.
             </div>
 
             <div style={{ textAlign: "right", marginTop: 18 }}>
@@ -2937,8 +4072,9 @@ function ColumnaEstratigrafica() {
       {/* ═══ TOAST ═══ */}
       {toast && (
         <div style={{
-          position: "fixed", bottom: 24, left: "50%",
-          transform: "translateX(-50%)", zIndex: 200,
+          position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom))",
+          left: "50%", transform: "translateX(-50%)", zIndex: 200,
+          maxWidth: "calc(100vw - 24px)", textAlign: "center",
           background: T.hdrBg, color: T.hdrFg, padding: "10px 22px",
           borderRadius: 3, fontFamily: MONO, fontSize: 12, letterSpacing: ".04em",
           border: `1px solid ${T.gold}`, boxShadow: "0 6px 24px rgba(0,0,0,.3)" }}>
@@ -3114,15 +4250,22 @@ function MetaForm({ meta, setMeta, inputStyle, lblStyle, secStyle, btnBase, capt
 // ═══════════════════════════════════════════════════════════════
 // SAMPLES FORM — gestión de muestras (altura, código, tipo)
 // ═══════════════════════════════════════════════════════════════
-function SamplesForm({ samples, addSample, delSample, totalH, inputStyle, lblStyle, secStyle, btnPrimary, btnSmall }) {
+function SamplesForm({ samples, addSample, delSample, totalH, inputStyle, lblStyle, secStyle, btnPrimary, btnSmall, btnBase, requestGpsUtm, meta }) {
   const [h, setH] = useState("");
   const [code, setCode] = useState("");
   const [type, setType] = useState("geoquimica");
+  const [utmE, setUtmE] = useState("");
+  const [utmN, setUtmN] = useState("");
+  const grabGps = () => requestGpsUtm && requestGpsUtm((u, coords) => {
+    setUtmE(u.E.toFixed(1)); setUtmN(u.N.toFixed(1));
+  });
   const submit = () => {
     const hv = parseFloat(h);
     if (!isFinite(hv) || !code.trim()) return;
-    addSample({ height: hv, code: code.trim(), type });
-    setH(""); setCode("");
+    const s = { height: hv, code: code.trim(), type };
+    if (utmE.trim() && utmN.trim()) { s.utmE = utmE.trim(); s.utmN = utmN.trim(); }
+    addSample(s);
+    setH(""); setCode(""); setUtmE(""); setUtmN("");
   };
   const sorted = [...samples].sort((a, b) => b.height - a.height);
   const hint = { fontSize: 9.5, color: T.text3, fontStyle: "italic", fontFamily: SERIF };
@@ -3143,6 +4286,25 @@ function SamplesForm({ samples, addSample, delSample, totalH, inputStyle, lblSty
           {SAMPLE_TYPES.map(t => <option key={t[0]} value={t[0]}>{t[1]}</option>)}
         </select>
       </label>
+
+      <div style={{ ...secStyle }}>· Coordenadas (opcional) ·</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <label style={{ ...lblStyle, flex: 1 }}>UTM Este
+          <input type="number" step="any" placeholder="E" value={utmE}
+            onChange={e => setUtmE(e.target.value)} style={inputStyle} />
+        </label>
+        <label style={{ ...lblStyle, flex: 1 }}>UTM Norte
+          <input type="number" step="any" placeholder="N" value={utmN}
+            onChange={e => setUtmN(e.target.value)} style={inputStyle} />
+        </label>
+      </div>
+      <button onClick={grabGps} style={{ ...btnBase, fontSize: 10.5 }}>
+        📍  Capturar GPS aquí</button>
+      <div style={hint}>
+        Toma la posición del punto de muestreo. Zona {meta?.utmZone || "—"}{meta?.utmHemi || "S"} ·
+        solo en https/PWA. Dejá en blanco si no aplica.
+      </div>
+
       <button onClick={submit} style={{ ...btnPrimary }}>＋  Agregar muestra</button>
       <div style={hint}>
         Se ubica a esa altura en la pista de muestras. Base = 0 m; techo = {totalH.toFixed(2)} m.
@@ -3163,7 +4325,9 @@ function SamplesForm({ samples, addSample, delSample, totalH, inputStyle, lblSty
                   <div style={{ fontSize: 11.5, fontWeight: 600, fontFamily: MONO, color: T.text }}>
                     {s.code} <span style={{ color: T.text3, fontWeight: 400 }}>· {s.height} m{out ? " ⚠" : ""}</span>
                   </div>
-                  <div style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic" }}>{t[1]}</div>
+                  <div style={{ fontSize: 9.5, color: T.text3, fontStyle: "italic" }}>
+                    {t[1]}{s.utmE && s.utmN ? ` · 📍 ${Math.round(s.utmE)}E / ${Math.round(s.utmN)}N` : ""}
+                  </div>
                 </div>
                 <button onClick={() => delSample(s.id)}
                   style={{ ...btnSmall, color: T.danger, borderColor: T.danger }}>✕</button>
