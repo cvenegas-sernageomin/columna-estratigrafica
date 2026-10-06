@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "Si usa este trabajo, cítelo como se indica abajo."
+title: "Columna Estratigráfica: editor de campo"
+type: software
+authors:
+  - name: "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+  - family-names: "Venegas Benavides"
+    given-names: "Carlos"
+    affiliation: "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+date-released: 2026-10-06
+license: CC-BY-NC-4.0
+url: "https://cvenegas-sernageomin.github.io/columna-estratigrafica/"
+repository-code: "https://github.com/cvenegas-sernageomin/columna-estratigrafica"
+keywords:
+  - "estratigrafía"
+  - "columna estratigráfica"
+  - "PWA"
+  - "geología de campo"
+  - "SERNAGEOMIN"

@@ -1,0 +1,31 @@
+{
+  "upload_type": "software",
+  "title": "Columna Estratigráfica: editor de campo",
+  "description": "<p>Aplicación web instalable (PWA) para construir columnas estratigráficas en terreno, con cálculo de espesores (Badgley/Ragan) y GPS, funcionando sin conexión.</p><p>Publicado en https://cvenegas-sernageomin.github.io/columna-estratigrafica/</p><p>La licencia CC BY-NC 4.0 cubre el trabajo original de los autores. No cubre el material de terceros:</p><ul><li>Las librerías de terceros incluidas (por ejemplo en vendor/) conservan sus propias licencias.</li></ul>",
+  "creators": [
+    {
+      "name": "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+    },
+    {
+      "name": "Venegas Benavides, Carlos",
+      "affiliation": "Servicio Nacional de Geología y Minería (SERNAGEOMIN)"
+    }
+  ],
+  "license": "cc-by-nc-4.0",
+  "access_right": "open",
+  "language": "spa",
+  "keywords": [
+    "estratigrafía",
+    "columna estratigráfica",
+    "PWA",
+    "geología de campo",
+    "SERNAGEOMIN"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://cvenegas-sernageomin.github.io/columna-estratigrafica/",
+      "relation": "isDocumentedBy",
+      "resource_type": "other"
+    }
+  ]
+}
