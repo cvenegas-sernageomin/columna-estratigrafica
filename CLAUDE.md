@@ -10,5 +10,8 @@ Ficha en memoria: `proyecto-columna-estratigrafica`.
 - Valores viejos de ambientes se mapean con `LEGACY_ENV_ALIAS`: no romper columnas ya guardadas.
 - Convenciones geológicas que el usuario corrige (gradación, contactos, cubierto): memoria `feedback-diseno-columna-geologico`.
 
-## Publicar
-`.\build.ps1` → commit de `src/` y `dist/` → push. Verificar el sitio con `curl`.
+## Ramas y publicación
+Un solo repo en GitHub con dos ramas: **`fuente`** (código; aquí es `master` siguiendo `origin/fuente`) y **`main`**
+(lo publicado en Pages). **`dist/` es un clon aparte en la rama `main`** (ignorado por la raíz).
+Publicar = `.\build.ps1` → commit + push de la fuente en la raíz → `cd dist` → commit + `git push origin main`.
+Verificar con `curl` que `sw.js` publicado tenga el `columna-<timestamp>` del build.
